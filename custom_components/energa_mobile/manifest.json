@@ -1,0 +1,11 @@
+{
+  "domain": "energa_mobile",
+  "name": "Energa Mobile API",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/thedeemling/hass-energa-my-meter",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/thedeemling/hass-energa-my-meter/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

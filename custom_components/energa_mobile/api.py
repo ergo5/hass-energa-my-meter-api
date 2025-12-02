@@ -1,0 +1,114 @@
+"""API Client for Energa Mobile."""
+import logging
+import aiohttp
+from .const import BASE_URL, LOGIN_ENDPOINT, DATA_ENDPOINT, HEADERS
+
+_LOGGER = logging.getLogger(__name__)
+
+class EnergaAuthError(Exception):
+    """Błąd logowania."""
+    pass
+
+class EnergaConnectionError(Exception):
+    """Błąd połączenia."""
+    pass
+
+class EnergaAPI:
+    def __init__(self, username, password, token, session: aiohttp.ClientSession):
+        self._username = username
+        self._password = password
+        self._token = token
+        self._session = session
+
+    async def async_login(self):
+        """Logowanie do API."""
+        params = {
+            "clientOS": "ios",
+            "notifyService": "APNs",
+            "username": self._username,
+            "password": self._password,
+            "token": self._token
+        }
+        
+        try:
+            # ssl=False wymagane w niektórych środowiskach HA dla tego API
+            async with self._session.get(
+                f"{BASE_URL}{LOGIN_ENDPOINT}", 
+                headers=HEADERS, 
+                params=params, 
+                ssl=False 
+            ) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    _LOGGER.error(f"Energa Login Error: {resp.status} - {text}")
+                    raise EnergaAuthError
+                
+                # Sprawdzenie czy JSON zawiera success: true
+                try:
+                    data = await resp.json()
+                    if data.get("success") is False:
+                        _LOGGER.error(f"Energa Login Failed Logic: {data}")
+                        raise EnergaAuthError
+                except Exception:
+                    pass
+
+                _LOGGER.debug("Zalogowano pomyślnie do Energa Mobile API")
+                return True
+
+        except aiohttp.ClientError as err:
+            raise EnergaConnectionError from err
+
+    async def async_get_data(self):
+        """Pobranie i parsowanie danych."""
+        try:
+            return await self._fetch_and_parse()
+        except EnergaAuthError:
+            _LOGGER.debug("Sesja wygasła, ponawiam logowanie...")
+            await self.async_login()
+            return await self._fetch_and_parse()
+
+    async def _fetch_and_parse(self):
+        """Wewnętrzna funkcja pobierająca."""
+        try:
+            async with self._session.get(
+                f"{BASE_URL}{DATA_ENDPOINT}", 
+                headers=HEADERS, 
+                ssl=False
+            ) as resp:
+                if resp.status in (401, 403):
+                    raise EnergaAuthError
+                
+                if resp.status != 200:
+                    raise EnergaConnectionError(f"API Error: {resp.status}")
+
+                data = await resp.json()
+                return self._parse_json(data)
+
+        except aiohttp.ClientError as err:
+            raise EnergaConnectionError from err
+
+    def _parse_json(self, json_data):
+        """Wyciągnięcie danych A+ i A-."""
+        try:
+            meter_point = json_data['response']['meterPoints'][0]
+            measurements = meter_point['lastMeasurements']
+            
+            result = {
+                "pobor": None,
+                "produkcja": None,
+                "ppe": meter_point.get('dev')
+            }
+            
+            for m in measurements:
+                zone = m.get('zone', '')
+                val = float(m.get('value', 0))
+                
+                if "A+" in zone:
+                    result["pobor"] = val
+                if "A-" in zone:
+                    result["produkcja"] = val
+                    
+            return result
+        except (KeyError, IndexError, TypeError) as e:
+            _LOGGER.error(f"Błąd struktury danych Energa: {e}")
+            return None
