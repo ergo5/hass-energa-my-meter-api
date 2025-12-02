@@ -18,6 +18,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         session
     )
 
+    # === KLUCZOWY FIX: Wymuszamy logowanie, aby odświeżyć sesję po restarcie HA ===
+    try:
+        await api.async_login() 
+    except Exception as e:
+        # Jeśli logowanie nie powiedzie się na starcie, logujemy błąd i kontynuujemy,
+        # licząc, że koordynator spróbuje ponownie później.
+        logging.getLogger(__name__).warning(f"Initial login failed: {e}")
+
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = api
 

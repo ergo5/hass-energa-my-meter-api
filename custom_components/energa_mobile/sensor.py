@@ -32,13 +32,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     await coordinator.async_config_entry_first_refresh()
 
+    # Definicja wszystkich dostępnych sensorów
     sensors_config = [
+        # Klucz, Nazwa, Jednostka, DeviceClass, StateClass, Kategoria
         ("pobor", "Energa Pobór (Import)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         ("produkcja", "Energa Produkcja (Eksport)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         ("tariff", "Taryfa", None, None, None, EntityCategory.DIAGNOSTIC),
         ("address", "Adres PPE", None, None, None, EntityCategory.DIAGNOSTIC),
         ("seller", "Sprzedawca", None, None, None, EntityCategory.DIAGNOSTIC),
-        ("contract_date", "Data umowy", None, None, None, EntityCategory.DIAGNOSTIC),
+        ("contract_date", "Data umowy", None, None, None, EntityCategory.DIAGNOSTIC), # FIX: Usunięcie SensorDeviceClass.DATE
         ("ppe", "Numer Licznika", None, None, None, EntityCategory.DIAGNOSTIC),
     ]
 
@@ -50,6 +52,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(entities)
 
 class EnergaSensor(CoordinatorEntity, SensorEntity):
+    """Sensor Energa."""
+
     def __init__(self, coordinator, data_key, name, unit, dev_class, state_class, category):
         super().__init__(coordinator)
         self._data_key = data_key
@@ -79,5 +83,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             "name": "Energa Licznik",
             "manufacturer": "Energa Operator",
             "model": "Mobile API",
-            "sw_version": "1.2.0",
+            "sw_version": "1.2.1", # Aktualizacja wersji oprogramowania
         }
