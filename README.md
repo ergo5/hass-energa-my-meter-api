@@ -1,7 +1,6 @@
 <div align="center">
-  <img src="logo.png" alt="Energa API Logo" width="200"/>
+  <img src="https://raw.githubusercontent.com/ergo5/hass-energa-my-meter-api/main/logo.png" width="200"/>
 </div>
-
 # Energa Mobile API for Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
