@@ -38,7 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         ("tariff", "Taryfa", None, None, None, EntityCategory.DIAGNOSTIC),
         ("address", "Adres PPE", None, None, None, EntityCategory.DIAGNOSTIC),
         ("seller", "Sprzedawca", None, None, None, EntityCategory.DIAGNOSTIC),
-        ("contract_date", "Data umowy", None, SensorDeviceClass.DATE, None, EntityCategory.DIAGNOSTIC),
+        ("contract_date", "Data umowy", None, None, None, EntityCategory.DIAGNOSTIC),
         ("ppe", "Numer Licznika", None, None, None, EntityCategory.DIAGNOSTIC),
     ]
 
