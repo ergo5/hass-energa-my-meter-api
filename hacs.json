@@ -1,4 +1,5 @@
 {
-  "name": "Mój licznik - Energa operator",
+  "name": "Energa Mobile API",
+  "render_readme": true,
   "country": ["PL", "GB"]
 }
