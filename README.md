@@ -1,6 +1,5 @@
 <div align="center">
   <img src="logo.png" alt="Energa API Logo" width="200"/>
-  <h1>API</h1>
 </div>
 
 # Energa Mobile API for Home Assistant
