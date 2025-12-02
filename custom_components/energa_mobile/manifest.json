@@ -1,11 +1,12 @@
 {
   "domain": "energa_mobile",
   "name": "Energa Mobile API",
-  "codeowners": [],
+  "codeowners": ["@ergo5"],
   "config_flow": true,
   "documentation": "https://github.com/ergo5/hass-energa-my-meter-api",
+  "integration_type": "device",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/ergo5/hass-energa-my-meter-api/issues",
   "requirements": [],
-  "version": "1.1.2"
+  "version": "1.2.0"
 }

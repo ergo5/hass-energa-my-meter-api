@@ -15,9 +15,7 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # Generujemy UNIKALNY token dla tej instalacji
             generated_token = secrets.token_hex(32)
-            
             session = async_get_clientsession(self.hass)
             api = EnergaAPI(
                 user_input[CONF_USERNAME], 
@@ -28,7 +26,6 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             try:
                 await api.async_login()
-                
                 return self.async_create_entry(
                     title=user_input[CONF_USERNAME], 
                     data={
