@@ -1,6 +1,7 @@
 <div align="center">
-  <img src="https://github.com/ergo5/hass-energa-my-meter-api/blob/main/logo.png" alt="GitHub Logo" width="200"/>
-  </div>
+  <img src="logo.png" alt="Energa API Logo" width="200"/>
+  <h1>API</h1>
+</div>
 
 # Energa Mobile API for Home Assistant
 
@@ -14,8 +15,9 @@ This component is built from the ground up to utilize the native **Mobile API** 
 
 * **Mobile API Protocol:** Connects directly to the `api-mojlicznik` endpoint for improved stability.
 * **Secure Authentication:** The integration generates a unique, local device token during installation. It does not rely on your personal phone's ID, ensuring your official mobile app remains logged in and secure.
-* **Energy Dashboard Ready:** Sensors use the `total_increasing` state class, making them fully compatible with the Home Assistant Energy Dashboard.
-* **Hourly Updates:** Data is automatically refreshed every hour to maintain a balance between data currency and server load.
+* **Metadata & Diagnostics:** Retrieves tariff, address, and contract details.
+* **Device Support:** Groups all entities under a single "Energa Meter" device.
+* **Energy Dashboard Ready:** Sensors use the `total_increasing` state class.
 
 ## 📦 Installation
 
@@ -48,27 +50,30 @@ The integration will automatically authenticate, generate a secure device token,
 
 ## 📊 Entities
 
-The integration creates the following sensors for each meter:
+The integration creates a Device representing your meter with the following entities:
 
-| Entity | Description |
-| :--- | :--- |
-| **Energa Import** | Total energy consumed from the grid (Zone A+). |
-| **Energa Export** | Total energy returned to the grid (Zone A-). For PV owners. |
+| Entity | Type | Description |
+| :--- | :--- | :--- |
+| **Energa Import** | Sensor | Total energy consumed from the grid (Zone A+). |
+| **Energa Export** | Sensor | Total energy returned to the grid (Zone A-). |
+| **Tariff** | Diagnostic | Current tariff plan (e.g., G11, G12). |
+| **PPE Address** | Diagnostic | Physical address of the installation. |
+| **Seller** | Diagnostic | Name of the energy seller. |
+| **Contract Date** | Diagnostic | Start date of the contract. |
+| **Meter Number** | Diagnostic | PPE identification number. |
 
 ## 🔄 Migrating and Preserving History
 
-If you are switching from a previous Energa integration and wish to keep your long-term statistics (Energy Dashboard history), you can perform a "sensor swap". Home Assistant links history to the **Entity ID**, so if the new sensor takes over the old Entity ID, the history will be preserved.
+If you are switching from a previous Energa integration and wish to keep your long-term statistics (Energy Dashboard history), you can perform a "sensor swap".
 
 **Follow these steps carefully:**
 
-1.  **Identify Old Entities:** Go to **Settings** -> **Devices & Services** -> **Entities** and find your old Energa sensors (e.g., `sensor.energa_my_meter_consumed`).
+1.  **Identify Old Entities:** Go to **Settings** -> **Devices & Services** -> **Entities** and find your old Energa sensors.
 2.  **Rename Old Entities:** Click on the old entity, go to Settings (cogwheel), and change the **Entity ID** by appending `_old` (e.g., change to `sensor.energa_my_meter_consumed_old`).
 3.  **Rename New Entities:** Find the **new** sensors created by this integration. Change their **Entity ID** to match exactly what the old sensor had (e.g., change `sensor.energa_import` to `sensor.energa_my_meter_consumed`).
 4.  **Restart Home Assistant:** Perform a full restart.
 
 After the restart, Home Assistant will treat the new integration as the source of data for the existing history.
-
-*Note: The new integration reports the total meter reading (e.g., 15000 kWh). If your previous integration also reported total readings, the transition will be seamless.*
 
 ## 🐛 Troubleshooting
 
