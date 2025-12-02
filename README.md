@@ -1,7 +1,6 @@
 <div align="center">
   <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Logo.png" alt="GitHub Logo" width="200"/>
-  <h1>API</h1>
-</div>
+  </div>
 
 # Energa Mobile API for Home Assistant
 
