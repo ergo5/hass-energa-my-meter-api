@@ -3,9 +3,9 @@
   "name": "Energa Mobile API",
   "codeowners": [],
   "config_flow": true,
-  "documentation": "https://github.com/thedeemling/hass-energa-my-meter",
+  "documentation": "https://github.com/ergo5/hass-energa-my-meter-api",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/thedeemling/hass-energa-my-meter/issues",
+  "issue_tracker": "https://github.com/ergo5/hass-energa-my-meter-api/issues",
   "requirements": [],
-  "version": "1.0.0"
+  "version": "1.1.0"
 }
