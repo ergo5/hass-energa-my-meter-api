@@ -27,26 +27,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         _LOGGER,
         name="energa_mobile_coordinator",
         update_method=api.async_get_data,
-        update_interval=timedelta(hours=1),
+        # Interwał 6h dla stabilności API
+        update_interval=timedelta(hours=6), 
     )
 
     await coordinator.async_config_entry_first_refresh()
 
     # Definicja wszystkich dostępnych sensorów
     sensors_config = [
-        # Klucz, Nazwa, Jednostka, DeviceClass, StateClass, Kategoria
-        ("pobor", "Energa Pobór (Import)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
-        ("produkcja", "Energa Produkcja (Eksport)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
+        # Główne sensory (Total Increasing) - dane z lastMeasurements
+        ("pobor", "Energa Pobór (Import) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
+        ("produkcja", "Energa Produkcja (Eksport) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
+        
+        # Nowe sensory DZIENNE - dane z /measurements (Zużycie DZIŚ)
+        ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, None),
+        ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, None),
+        
+        # Sensory diagnostyczne
         ("tariff", "Taryfa", None, None, None, EntityCategory.DIAGNOSTIC),
         ("address", "Adres PPE", None, None, None, EntityCategory.DIAGNOSTIC),
         ("seller", "Sprzedawca", None, None, None, EntityCategory.DIAGNOSTIC),
-        ("contract_date", "Data umowy", None, None, None, EntityCategory.DIAGNOSTIC), # FIX: Usunięcie SensorDeviceClass.DATE
+        ("contract_date", "Data umowy", None, None, None, EntityCategory.DIAGNOSTIC),
         ("ppe", "Numer Licznika", None, None, None, EntityCategory.DIAGNOSTIC),
     ]
 
     entities = []
     for key, name, unit, dev_class, state_class, category in sensors_config:
-        if coordinator.data.get(key) is not None:
+        if coordinator.data.get(key) is not None or key.startswith("daily_"):
             entities.append(EnergaSensor(coordinator, key, name, unit, dev_class, state_class, category))
     
     async_add_entities(entities)
@@ -83,5 +90,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             "name": "Energa Licznik",
             "manufacturer": "Energa Operator",
             "model": "Mobile API",
-            "sw_version": "1.2.2", # AKTUALIZACJA WERSJI
+            "sw_version": "1.2.3",
         }

@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import EnergaAPI
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_TOKEN
-import logging # Użyte w nowym kodzie
+import logging
 
 PLATFORMS = ["sensor"]
 
@@ -25,7 +25,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as e:
         # Jeśli logowanie nie powiedzie się na starcie, logujemy błąd i kontynuujemy,
         # licząc, że koordynator spróbuje ponownie później.
-        logging.getLogger(__name__).warning(f"Initial login failed: {e}") # Używa logging, które zostało dodane.
+        logging.getLogger(__name__).warning(f"Initial login failed: {e}")
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = api
