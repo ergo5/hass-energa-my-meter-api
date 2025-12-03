@@ -83,5 +83,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             "name": "Energa Licznik",
             "manufacturer": "Energa Operator",
             "model": "Mobile API",
-            "sw_version": "1.2.1", # Aktualizacja wersji oprogramowania
+            "sw_version": "1.2.2", # AKTUALIZACJA WERSJI
         }

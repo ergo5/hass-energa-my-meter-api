@@ -55,8 +55,13 @@ class EnergaAPI:
         try:
             return await self._fetch_and_parse()
         except EnergaAuthError:
+            # Mechanizm ponownego logowania
+            _LOGGER.warning("Token expired or unauthorized access. Attempting relogin.")
             await self.async_login()
             return await self._fetch_and_parse()
+        except EnergaConnectionError as e:
+            _LOGGER.error(f"Connection error during data fetch: {e}")
+            raise # Przekazujemy dalej, aby koordynator ponowił próbę.
 
     async def _fetch_and_parse(self):
         """Wewnętrzna funkcja pobierająca."""
@@ -66,8 +71,14 @@ class EnergaAPI:
                 headers=HEADERS, 
                 ssl=False
             ) as resp:
+                # === KLUCZOWA ZMIANA: Obsługa błędów autoryzacji 401/403 ===
+                if resp.status in [401, 403]:
+                    # Wyrzucamy EnergaAuthError, aby wywołać async_login w async_get_data
+                    raise EnergaAuthError(f"Authentication failure: {resp.status}")
+                
                 if resp.status != 200:
                     raise EnergaConnectionError(f"API Error: {resp.status}")
+                # ==========================================================
 
                 data = await resp.json()
                 return self._parse_json(data)
