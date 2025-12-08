@@ -27,7 +27,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         _LOGGER,
         name="energa_mobile_coordinator",
         update_method=api.async_get_data,
-        # Interwał 6h dla stabilności API
         update_interval=timedelta(hours=6), 
     )
 
@@ -39,9 +38,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         ("pobor", "Energa Pobór (Import) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         ("produkcja", "Energa Produkcja (Eksport) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         
-        # Nowe sensory DZIENNE - dane z /measurements (Zużycie DZIŚ)
-        ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, None),
-        ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.MEASUREMENT, None),
+        # Nowe sensory DZIENNE (Zużycie DZIŚ) - Klasa stanu musi być NONE, by uniknąć błędu HA
+        ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, None, None), # FIX: state_class zmieniony na None
+        ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, None, None), # FIX: state_class zmieniony na None
         
         # Sensory diagnostyczne
         ("tariff", "Taryfa", None, None, None, EntityCategory.DIAGNOSTIC),
@@ -90,5 +89,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             "name": "Energa Licznik",
             "manufacturer": "Energa Operator",
             "model": "Mobile API",
-            "sw_version": "1.2.3",
+            "sw_version": "1.2.4", # AKTUALIZACJA WERSJI
         }

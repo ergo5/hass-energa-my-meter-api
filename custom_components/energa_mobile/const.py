@@ -10,8 +10,8 @@ CONF_TOKEN = "token"
 BASE_URL = "https://api-mojlicznik.energa-operator.pl"
 LOGIN_ENDPOINT = "/dp/apihelper/UserLogin"
 DATA_ENDPOINT = "/dp/resources/user/data"
-# NOWY ENDPOINT DANYCH GODZINOWYCH
-HISTORY_ENDPOINT = "/dp/resources/user/measurements" 
+# NOWY ENDPOINT DANYCH GODZINOWYCH (KOREKTA Z BŁĘDU 404)
+HISTORY_ENDPOINT = "/dp/resources/user/data/measurements" 
 
 # Nagłówki emulujące aplikację iOS
 HEADERS = {

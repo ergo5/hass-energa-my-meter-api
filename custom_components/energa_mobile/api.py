@@ -104,6 +104,7 @@ class EnergaAPI:
                 if resp.status in [401, 403]:
                     raise EnergaAuthError(f"Measurements Auth failure: {resp.status}")
                 if resp.status != 200:
+                    # Logujemy, jeśli błąd nie jest 200
                     _LOGGER.error(f"Failed to fetch measurements: API Status {resp.status}")
                     return None
 
