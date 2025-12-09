@@ -7,43 +7,22 @@ from .api import EnergaAPI, EnergaAuthError
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_TOKEN
 
 class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Obsługa konfiguracji UI."""
     VERSION = 1
-
     async def async_step_user(self, user_input=None):
-        """Krok 1: Formularz logowania."""
         errors = {}
-
         if user_input is not None:
             generated_token = secrets.token_hex(32)
             session = async_get_clientsession(self.hass)
-            api = EnergaAPI(
-                user_input[CONF_USERNAME], 
-                user_input[CONF_PASSWORD], 
-                generated_token,
-                session
-            )
-
+            api = EnergaAPI(user_input[CONF_USERNAME], user_input[CONF_PASSWORD], generated_token, session)
             try:
                 await api.async_login()
-                return self.async_create_entry(
-                    title=user_input[CONF_USERNAME], 
-                    data={
-                        CONF_USERNAME: user_input[CONF_USERNAME],
-                        CONF_PASSWORD: user_input[CONF_PASSWORD],
-                        CONF_TOKEN: generated_token
-                    }
-                )
-            except EnergaAuthError:
-                errors["base"] = "invalid_auth"
-            except Exception:
-                errors["base"] = "cannot_connect"
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(CONF_USERNAME): str,
-                vol.Required(CONF_PASSWORD): str,
-            }),
-            errors=errors,
-        )
+                return self.async_create_entry(title=user_input[CONF_USERNAME], data={
+                    CONF_USERNAME: user_input[CONF_USERNAME],
+                    CONF_PASSWORD: user_input[CONF_PASSWORD],
+                    CONF_TOKEN: generated_token
+                })
+            except EnergaAuthError: errors["base"] = "invalid_auth"
+            except Exception: errors["base"] = "cannot_connect"
+        return self.async_show_form(step_id="user", data_schema=vol.Schema({
+            vol.Required(CONF_USERNAME): str, vol.Required(CONF_PASSWORD): str
+        }), errors=errors)
