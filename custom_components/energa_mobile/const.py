@@ -10,13 +10,13 @@ BASE_URL = "https://api-mojlicznik.energa-operator.pl"
 LOGIN_ENDPOINT = "/dp/apihelper/UserLogin"
 DATA_ENDPOINT = "/dp/resources/user/data"
 
-# Endpoint do wykresów (potwierdzony w Fiddler i starej integracji)
+# Endpoint do wykresów
 HISTORY_ENDPOINT = "/dp/resources/mchart"
 
-# Parametry 'mo' (Meter Object) - Klucz do działania wykresów!
-# Wzięte z pliku stats_modes.py starej integracji
-MO_CONSUMPTION = "A+"
-MO_PRODUCTION = "A-"
+# KLUCZOWA ZMIANA: Używamy kodów OBIS z Twoich logów.
+# A+ (Pobór) powodował błędy przez znak "+". OBIS jest bezpieczny.
+MO_CONSUMPTION = "1-0:1.8.0*255"
+MO_PRODUCTION = "1-0:2.8.0*255"
 
 HEADERS = {
     "User-Agent": "Energa/3.0.3 (pl.energa-operator.mojlicznik; build:1; iOS 26.2.0) Alamofire/3.0.3",

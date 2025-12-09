@@ -3,6 +3,7 @@ import logging
 import aiohttp
 import json
 from datetime import datetime
+from zoneinfo import ZoneInfo # Wymagane do poprawnej obsługi czasu w PL
 from .const import BASE_URL, LOGIN_ENDPOINT, DATA_ENDPOINT, HEADERS, HISTORY_ENDPOINT, MO_CONSUMPTION, MO_PRODUCTION
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ class EnergaAPI:
         self._session = session
 
     async def async_login(self):
-        """Logowanie do API (Metoda iOS)."""
+        """Logowanie do API."""
         params = {
             "clientOS": "ios",
             "notifyService": "APNs",
@@ -40,7 +41,7 @@ class EnergaAPI:
                 ssl=False 
             ) as resp:
                 if resp.status != 200:
-                    _LOGGER.error(f"Login failed with status: {resp.status}")
+                    _LOGGER.error(f"Login failed: {resp.status}")
                     raise EnergaAuthError
                 try:
                     data = await resp.json()
@@ -53,9 +54,7 @@ class EnergaAPI:
             raise EnergaConnectionError from err
 
     async def async_get_data(self):
-        """Pobranie danych głównych i wykresów."""
-        
-        # 1. Dane główne
+        """Pobranie danych."""
         try:
             data = await self._fetch_and_parse()
         except EnergaAuthError:
@@ -63,31 +62,37 @@ class EnergaAPI:
             await self.async_login()
             data = await self._fetch_and_parse()
         
-        # 2. Dane wykresów (godzinowe)
         meter_id = data.get("meter_id") 
         if meter_id:
-            # Timestamp: Czas lokalny (północ), tak jak w starej integracji
-            now = datetime.now()
-            today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            # === WARSAW TIMEZONE FIX ===
+            # Wyliczamy północ dla strefy Europe/Warsaw.
+            # Bez tego, HA w UTC pyta o godzinę 01:00 w nocy i gubi dane z 00:00.
+            tz_warsaw = ZoneInfo("Europe/Warsaw")
+            now_warsaw = datetime.now(tz_warsaw)
+            today_midnight = now_warsaw.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # Timestamp dla API (milisekundy)
             timestamp = int(today_midnight.timestamp() * 1000)
 
-            _LOGGER.debug(f"Requesting chart for Meter: {meter_id}, Timestamp: {timestamp} (Local)")
+            _LOGGER.debug(f"Requesting chart -> Meter: {meter_id}, TS: {timestamp} (Time: {today_midnight})")
 
-            # Pobór (A+)
+            # 1. Pobór (OBIS Import)
             try:
                 cons_data = await self._fetch_chart_data(meter_id, timestamp, MO_CONSUMPTION)
-                # LOGOWANIE SUROWEJ ODPOWIEDZI - KLUCZOWE DO DIAGNOZY
-                _LOGGER.debug(f"RAW CHART (Pobor): {json.dumps(cons_data)}")
+                # Logujemy odpowiedź, aby upewnić się, że to IMPORT (powinno być mało kWh rano)
+                _LOGGER.debug(f"IMPORT DATA (Raw): {json.dumps(cons_data)}")
                 data["daily_pobor"] = self._sum_chart_values(cons_data)
             except Exception as e:
-                _LOGGER.error(f"Error fetching consumption chart: {e}")
+                _LOGGER.error(f"Error fetching consumption: {e}")
 
-            # Produkcja (A-)
+            # 2. Produkcja (OBIS Export)
             try:
                 prod_data = await self._fetch_chart_data(meter_id, timestamp, MO_PRODUCTION)
+                # Logujemy odpowiedź, aby upewnić się, że to EKSPORT (dużo kWh w dzień)
+                _LOGGER.debug(f"EXPORT DATA (Raw): {json.dumps(prod_data)}")
                 data["daily_produkcja"] = self._sum_chart_values(prod_data)
             except Exception as e:
-                _LOGGER.error(f"Error fetching production chart: {e}")
+                _LOGGER.error(f"Error fetching production: {e}")
 
         return data
 
@@ -109,9 +114,8 @@ class EnergaAPI:
             if resp.status in [401, 403]:
                  raise EnergaAuthError
             if resp.status != 200:
-                _LOGGER.error(f"Chart API Error {resp.status} for {mo_type}")
+                _LOGGER.error(f"API Error {resp.status} for MO: {mo_type}")
                 return None
-            
             return await resp.json()
 
     def _sum_chart_values(self, json_data):
@@ -121,17 +125,16 @@ class EnergaAPI:
             if json_data and "response" in json_data and "mainChart" in json_data["response"]:
                 for point in json_data["response"]["mainChart"]:
                     if "zones" in point and point["zones"]:
-                        # Sumowanie wartości niebędących None
                         hourly_sum = sum(val for val in point["zones"] if val is not None)
                         total += hourly_sum
             else:
-                _LOGGER.warning("Empty or invalid chart response structure")
+                 _LOGGER.warning(f"Empty/Invalid chart structure")
         except Exception as e:
-             _LOGGER.error(f"Error parsing chart data: {e}")
+             _LOGGER.error(f"Parse error: {e}")
         return round(total, 3)
 
     async def _fetch_and_parse(self):
-        """Wewnętrzna funkcja pobierająca dane główne."""
+        # ... (bez zmian) ...
         async with self._session.get(
             f"{BASE_URL}{DATA_ENDPOINT}", 
             headers=HEADERS, 
@@ -146,12 +149,10 @@ class EnergaAPI:
             return self._parse_json(data)
 
     def _parse_json(self, json_data):
-        """Parsowanie danych głównych."""
         try:
             response = json_data['response']
             meter_point = response['meterPoints'][0]
             measurements = meter_point['lastMeasurements']
-            
             agreement = response.get('agreementPoints', [{}])[0]
             dealer = agreement.get('dealer', {})
 
@@ -178,7 +179,7 @@ class EnergaAPI:
                     
             return result
         except (KeyError, IndexError, TypeError) as e:
-            _LOGGER.error(f"Błąd struktury danych Energa: {e}")
+            _LOGGER.error(f"Structure error: {e}")
             return None
 
     def _parse_date(self, timestamp):
