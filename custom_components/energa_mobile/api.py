@@ -1,6 +1,7 @@
 """API Client for Energa Mobile."""
 import logging
 import aiohttp
+import json
 from datetime import datetime
 from .const import BASE_URL, LOGIN_ENDPOINT, DATA_ENDPOINT, HEADERS, HISTORY_ENDPOINT, MO_CONSUMPTION, MO_PRODUCTION
 
@@ -22,7 +23,7 @@ class EnergaAPI:
         self._session = session
 
     async def async_login(self):
-        """Logowanie do API (Metoda iOS - stabilna)."""
+        """Logowanie do API (Metoda iOS)."""
         params = {
             "clientOS": "ios",
             "notifyService": "APNs",
@@ -39,6 +40,7 @@ class EnergaAPI:
                 ssl=False 
             ) as resp:
                 if resp.status != 200:
+                    _LOGGER.error(f"Login failed with status: {resp.status}")
                     raise EnergaAuthError
                 try:
                     data = await resp.json()
@@ -51,13 +53,9 @@ class EnergaAPI:
             raise EnergaConnectionError from err
 
     async def async_get_data(self):
-        """
-        Pobranie danych (Hybryda v1.5.0).
-        1. Dane główne przez UserData.
-        2. Wykresy przez mchart (logika ze starej integracji).
-        """
+        """Pobranie danych głównych i wykresów."""
         
-        # 1. Pobranie danych głównych (User Data)
+        # 1. Dane główne
         try:
             data = await self._fetch_and_parse()
         except EnergaAuthError:
@@ -65,18 +63,21 @@ class EnergaAPI:
             await self.async_login()
             data = await self._fetch_and_parse()
         
-        # 2. Pobranie danych godzinowych (Wykresy)
+        # 2. Dane wykresów (godzinowe)
         meter_id = data.get("meter_id") 
         if meter_id:
-            # Timestamp: Logika z connector.py starej integracji
-            # Bierzemy czas lokalny, zerujemy godziny, zamieniamy na timestamp * 1000
+            # Timestamp: Czas lokalny (północ), tak jak w starej integracji
             now = datetime.now()
             today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
             timestamp = int(today_midnight.timestamp() * 1000)
 
+            _LOGGER.debug(f"Requesting chart for Meter: {meter_id}, Timestamp: {timestamp} (Local)")
+
             # Pobór (A+)
             try:
                 cons_data = await self._fetch_chart_data(meter_id, timestamp, MO_CONSUMPTION)
+                # LOGOWANIE SUROWEJ ODPOWIEDZI - KLUCZOWE DO DIAGNOZY
+                _LOGGER.debug(f"RAW CHART (Pobor): {json.dumps(cons_data)}")
                 data["daily_pobor"] = self._sum_chart_values(cons_data)
             except Exception as e:
                 _LOGGER.error(f"Error fetching consumption chart: {e}")
@@ -91,12 +92,12 @@ class EnergaAPI:
         return data
 
     async def _fetch_chart_data(self, meter_id, timestamp, mo_type):
-        """Pobiera dane wykresu (Endpoint /mchart)."""
+        """Pobiera dane wykresu."""
         params = {
             "mainChartDate": str(timestamp),
             "meterPoint": str(meter_id),
-            "type": "DAY",  # EnergaStatsTypes.DAY ze starej integracji
-            "mo": mo_type   # 'A+' lub 'A-' (Naprawione!)
+            "type": "DAY",
+            "mo": mo_type
         }
 
         async with self._session.get(
@@ -114,15 +115,17 @@ class EnergaAPI:
             return await resp.json()
 
     def _sum_chart_values(self, json_data):
-        """Sumuje wartości z wykresu (Parsowanie JSON)."""
+        """Sumuje wartości z wykresu."""
         total = 0.0
         try:
             if json_data and "response" in json_data and "mainChart" in json_data["response"]:
                 for point in json_data["response"]["mainChart"]:
                     if "zones" in point and point["zones"]:
-                        # Sumujemy wartości ze wszystkich stref (ignorując null)
+                        # Sumowanie wartości niebędących None
                         hourly_sum = sum(val for val in point["zones"] if val is not None)
                         total += hourly_sum
+            else:
+                _LOGGER.warning("Empty or invalid chart response structure")
         except Exception as e:
              _LOGGER.error(f"Error parsing chart data: {e}")
         return round(total, 3)
@@ -153,7 +156,7 @@ class EnergaAPI:
             dealer = agreement.get('dealer', {})
 
             result = {
-                "meter_id": meter_point.get('id'), # ID potrzebne do wykresów
+                "meter_id": meter_point.get('id'),
                 "pobor": None,
                 "produkcja": None,
                 "ppe": meter_point.get('dev'),

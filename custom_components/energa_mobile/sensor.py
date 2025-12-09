@@ -27,19 +27,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         _LOGGER,
         name="energa_mobile_coordinator",
         update_method=api.async_get_data,
-        update_interval=timedelta(hours=1), # Sprawdzamy co godzinę
+        update_interval=timedelta(hours=1),
     )
 
     await coordinator.async_config_entry_first_refresh()
 
     sensors_config = [
-        # Główne liczniki (Zostają jako informacja ogólna, ale nie do Panelu Energia)
+        # Główne liczniki (Total)
         ("pobor", "Energa Pobór (Import) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         ("produkcja", "Energa Produkcja (Eksport) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         
-        # === TO JEST KLUCZ DO SUKCESU ===
-        # Sensory Dzienne (Zsumowane z wykresów godzinowych A+/A-)
-        # Ustawiamy TOTAL_INCREASING, żeby Panel Energia je przyjął i obsługiwał przyrosty godzinowe oraz reset o północy.
+        # Sensory Dzienne (Zsumowane z wykresów)
+        # Używamy TOTAL_INCREASING, aby działały w Panelu Energia (zerowanie o północy jest obsługiwane)
         ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None), 
         ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None), 
         
@@ -86,5 +85,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             "name": "Energa Licznik",
             "manufacturer": "Energa Operator",
             "model": "Mobile API",
-            "sw_version": "1.5.1",
+            "sw_version": "1.5.2",
         }
