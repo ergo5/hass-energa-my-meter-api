@@ -27,18 +27,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         _LOGGER,
         name="energa_mobile_coordinator",
         update_method=api.async_get_data,
-        update_interval=timedelta(hours=1), # Sprawdzamy co godzinę, żeby łapać nowe słupki
+        update_interval=timedelta(hours=1), # Sprawdzamy co godzinę
     )
 
     await coordinator.async_config_entry_first_refresh()
 
     sensors_config = [
-        # Główne liczniki (Zostawiamy, ale mogą być opóźnione)
+        # Główne liczniki (Zostają jako informacja ogólna, ale nie do Panelu Energia)
         ("pobor", "Energa Pobór (Import) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         ("produkcja", "Energa Produkcja (Eksport) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         
-        # Sensory Dzienne - KLUCZOWA ZMIANA: TOTAL_INCREASING
-        # Dzięki temu możesz je wybrać w Panelu Energia. HA obsłuży to, że zerują się o północy.
+        # === TO JEST KLUCZ DO SUKCESU ===
+        # Sensory Dzienne (Zsumowane z wykresów godzinowych A+/A-)
+        # Ustawiamy TOTAL_INCREASING, żeby Panel Energia je przyjął i obsługiwał przyrosty godzinowe oraz reset o północy.
         ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None), 
         ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None), 
         
