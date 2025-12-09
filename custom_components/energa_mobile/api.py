@@ -79,7 +79,7 @@ class EnergaAPI:
             # 1. Pobór (OBIS Import)
             try:
                 cons_data = await self._fetch_chart_data(meter_id, timestamp, MO_CONSUMPTION)
-                # Logujemy odpowiedź, aby upewnić się, że to IMPORT (powinno być mało kWh rano)
+                # Logujemy odpowiedź (DEBUG)
                 _LOGGER.debug(f"IMPORT DATA (Raw): {json.dumps(cons_data)}")
                 data["daily_pobor"] = self._sum_chart_values(cons_data)
             except Exception as e:
@@ -88,7 +88,7 @@ class EnergaAPI:
             # 2. Produkcja (OBIS Export)
             try:
                 prod_data = await self._fetch_chart_data(meter_id, timestamp, MO_PRODUCTION)
-                # Logujemy odpowiedź, aby upewnić się, że to EKSPORT (dużo kWh w dzień)
+                # Logujemy odpowiedź (DEBUG)
                 _LOGGER.debug(f"EXPORT DATA (Raw): {json.dumps(prod_data)}")
                 data["daily_produkcja"] = self._sum_chart_values(prod_data)
             except Exception as e:
@@ -134,7 +134,6 @@ class EnergaAPI:
         return round(total, 3)
 
     async def _fetch_and_parse(self):
-        # ... (bez zmian) ...
         async with self._session.get(
             f"{BASE_URL}{DATA_ENDPOINT}", 
             headers=HEADERS, 

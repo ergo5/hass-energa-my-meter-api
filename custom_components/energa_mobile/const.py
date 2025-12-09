@@ -13,8 +13,9 @@ DATA_ENDPOINT = "/dp/resources/user/data"
 # Endpoint do wykresów
 HISTORY_ENDPOINT = "/dp/resources/mchart"
 
-# KLUCZOWA ZMIANA: Używamy kodów OBIS z Twoich logów.
-# A+ (Pobór) powodował błędy przez znak "+". OBIS jest bezpieczny.
+# Kody OBIS (Meter Object) - Kluczowe dla rozróżnienia danych!
+# 1-0:1.8.0*255 = Pobór (Import)
+# 1-0:2.8.0*255 = Produkcja (Eksport)
 MO_CONSUMPTION = "1-0:1.8.0*255"
 MO_PRODUCTION = "1-0:2.8.0*255"
 
