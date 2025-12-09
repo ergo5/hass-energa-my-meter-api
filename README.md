@@ -2,23 +2,23 @@
   <img src="https://raw.githubusercontent.com/ergo5/hass-energa-my-meter-api/main/logo.png" alt="Energa API Logo" width="200"/>
 </div>
 
-# Energa Mobile API for Home Assistant
+# Energa Mobile API (Hybrid Edition) for Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
-A modern custom integration for **Energa Operator** meters in Home Assistant.
+A robust custom integration for **Energa Operator** meters in Home Assistant, built for stability and precision.
 
-This component is built from the ground up to utilize the native **Mobile API** (`api-mojlicznik`), providing a robust and stable connection for retrieving energy data. It emulates the behavior of the official iOS application to ensure reliable communication with Energa servers.
+This component utilizes a unique **Hybrid Engine**: it uses the modern **Mobile API** protocol (`api-mojlicznik`) for secure, token-based authentication (bypassing CAPTCHA issues), while leveraging the legacy chart data logic to retrieve accurate, **hourly energy consumption** details directly from Energa's graph data.
 
 ---
 
 ## ✨ Key Features
 
-* **Mobile API Protocol:** Connects directly to the `api-mojlicznik` endpoint for improved stability.
-* **Secure Authentication:** The integration generates a unique, local device token during installation. It does not rely on your personal phone's ID, ensuring your official mobile app remains logged in and secure.
+* **Hybrid Engine (New!):** Combines the security of the Mobile App login with the data precision of web charts.
+* **True Hourly Data:** Unlike standard API readings which may update only once a day, this integration calculates usage from the **hourly charts**, ensuring your Energy Dashboard bars update every hour.
+* **Secure Authentication:** Generates a unique, local device token. Does not rely on your personal phone's ID, keeping your official app secure.
 * **Metadata & Diagnostics:** Retrieves tariff, address, and contract details.
-* **Device Support:** Groups all entities under a single "Energa Meter" device.
-* **Energy Dashboard Ready:** Sensors use the `total_increasing` state class.
+* **Energy Dashboard Ready:** "Today" sensors use `total_increasing` class for perfect integration with Home Assistant's Energy panel.
 
 ---
 
@@ -26,19 +26,22 @@ This component is built from the ground up to utilize the native **Mobile API** 
 
 ### Option 1: HACS (Recommended)
 
-1.  Open **HACS** in Home Assistant.
-2.  Go to the **Integrations** section.
-3.  Click the menu (three dots) in the top-right corner and select **Custom repositories**.
-4.  Paste the URL of this repository.
-5.  Select **Integration** as the category.
-6.  Click **Add** and then download the integration.
-7.  **Restart Home Assistant**.
+1.  Open **HACS** in Home Assistant.
+2.  Go to the **Integrations** section.
+3.  Click the menu (three dots) in the top-right corner and select **Custom repositories**.
+4.  Paste the URL of this repository:
+    ```text
+    [https://github.com/ergo5/hass-energa-my-meter-api](https://github.com/ergo5/hass-energa-my-meter-api)
+    ```
+5.  Select **Integration** as the category.
+6.  Click **Add** and then download the integration.
+7.  **Restart Home Assistant**.
 
 ### Option 2: Manual Installation
 
-1.  Download the `energa_mobile` folder from this repository.
-2.  Copy it into the `custom_components` directory in your Home Assistant configuration folder (e.g., `/config/custom_components/energa_mobile`).
-3.  Restart Home Assistant.
+1.  Download the `energa_mobile` folder from this repository.
+2.  Copy it into the `custom_components` directory in your Home Assistant configuration folder (e.g., `/config/custom_components/energa_mobile`).
+3.  Restart Home Assistant.
 
 ---
 
@@ -46,10 +49,10 @@ This component is built from the ground up to utilize the native **Mobile API** 
 
 Configuration is handled entirely via the Home Assistant UI.
 
-1.  Go to **Settings** -> **Devices & Services**.
-2.  Click **Add Integration**.
-3.  Search for **Energa Mobile API**.
-4.  Enter your **Energa Mój Licznik** username (email) and password.
+1.  Go to **Settings** -> **Devices & Services**.
+2.  Click **Add Integration**.
+3.  Search for **Energa Mobile API**.
+4.  Enter your **Energa Mój Licznik** username (email) and password.
 
 The integration will automatically authenticate, generate a secure device token, and discover your meters.
 
@@ -57,12 +60,30 @@ The integration will automatically authenticate, generate a secure device token,
 
 ## 📊 Entities
 
-The integration creates a Device representing your meter with the following entities:
+The integration creates a Device representing your meter with the following entities.
+
+### ⚡ Primary Sensors (For Energy Dashboard)
+
+These sensors are calculated from hourly charts and update frequently throughout the day. **Use these for your Energy Dashboard.**
 
 | Entity | Type | Description |
 | :--- | :--- | :--- |
-| **Energa Import** | Sensor | Total energy consumed from the grid (Zone A+). |
-| **Energa Export** | Sensor | Total energy returned to the grid (Zone A-). |
+| **Energa Pobór Dziś** (`daily_pobor`) | Sensor | Sum of hourly consumption for the current day. Resets at midnight. |
+| **Energa Produkcja Dziś** (`daily_produkcja`) | Sensor | Sum of hourly production for the current day. Resets at midnight. |
+
+### ℹ️ Informational Sensors (Total Counters)
+
+These sensors show the raw state of the meter (Last Measurement). Note: Energa often updates these only once every 24h.
+
+| Entity | Type | Description |
+| :--- | :--- | :--- |
+| **Energa Import Total** (`pobor`) | Sensor | Total lifetime consumption. |
+| **Energa Export Total** (`produkcja`) | Sensor | Total lifetime production. |
+
+### 🛠️ Diagnostics
+
+| Entity | Type | Description |
+| :--- | :--- | :--- |
 | **Tariff** | Diagnostic | Current tariff plan (e.g., G11, G12). |
 | **PPE Address** | Diagnostic | Physical address of the installation. |
 | **Seller** | Diagnostic | Name of the energy seller. |
@@ -71,23 +92,33 @@ The integration creates a Device representing your meter with the following enti
 
 ---
 
-## 🔄 Migrating and Preserving History (The Final Protocol)
+## ⚡ Energy Dashboard Configuration
 
-If you are switching from a previous Energa integration and wish to keep your long-term statistics (Energy Dashboard history), you must perform an Entity ID swap. **This process requires the removal of the old integration to prevent ID conflicts.**
+To get beautiful hourly bars in your Energy Dashboard, follow this setup:
 
-### Step 1: Eliminate the Old Integration (Mandatory Cleanup)
+1.  Go to **Settings** -> **Dashboards** -> **Energy**.
+2.  **Grid Consumption:** Add source -> Select **`Energa Pobór Dziś`**.
+3.  **Return to Grid:** Add source -> Select **`Energa Produkcja Dziś`**.
 
-1.  **Remove Old Integration:** Navigate to **Settings** → **Devices & Services** → **Integrations**. Find the old "Energa" integration (the one based on web scraping) and select **Delete** to remove it completely.
-2.  **Restart Home Assistant:** Perform a full restart (**Settings** → **System** → **Restart**). This clears the registry cache and flags the old Entity IDs as disposable.
+*Do not use the "Total" sensors for the dashboard, as they may result in a single large bar once a day.*
 
-### Step 2: Purge the Ghost ID and Swap
+---
 
-1.  **Verify ID Status:** Go to **Developer Tools** → **Entities**. Search for the old historical ID (e.g., `sensor.energa_my_meter_30132815_consumed_strefa_calodobowa`).
-2.  **Purge Ghost:** If the old entity ID still appears (even if marked as 'Removed' or 'Unavailable'), click it and scroll to the bottom to click **REMOVE** (Delete from Registry). This action frees the name permanently.
-3.  **Rename New Entities:** Find the **new** working sensors (e.g., `sensor.energa_mobile_pobor_import`).
-4.  Change the **Entity ID** of the new sensor to match the **exact historical ID** you just freed.
+## 🔄 Migrating and Preserving History
 
-After this process, Home Assistant will seamlessly link the historical data to your new, stable sensor.
+If you are switching from a previous Energa integration and wish to keep your long-term statistics (Energy Dashboard history), you must perform an Entity ID swap.
+
+**The Protocol:**
+
+1.  **Remove Old Integration:** Delete the old integration from **Devices & Services**.
+2.  **Restart HA:** Essential to clear the registry.
+3.  **Purge Ghost IDs:** Go to **Developer Tools** -> **Entities**. Search for your old sensor ID (e.g., `sensor.energa_my_meter_..._consumed`). If it still exists (unavailable), click it -> **Delete**.
+4.  **Rename New Sensors:**
+    * Find the new **`Energa Pobór Dziś`** sensor.
+    * Rename its **Entity ID** to match your **old historical ID** exactly.
+    * *(Repeat for the Production sensor).*
+
+After this, Home Assistant will treat the new hybrid sensor as the continuation of your old history.
 
 ---
 
