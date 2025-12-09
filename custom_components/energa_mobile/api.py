@@ -1,8 +1,8 @@
 """API Client for Energa Mobile."""
 import logging
 import aiohttp
-from datetime import datetime, timedelta, timezone 
-from .const import BASE_URL, LOGIN_ENDPOINT, DATA_ENDPOINT, HEADERS, HISTORY_ENDPOINT
+from datetime import datetime, timedelta, timezone
+from .const import BASE_URL, LOGIN_ENDPOINT, DATA_ENDPOINT, HEADERS, HISTORY_ENDPOINT, OBIS_CONSUMPTION, OBIS_PRODUCTION
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,115 +53,92 @@ class EnergaAPI:
     async def async_get_data(self):
         """Pobranie danych głównych i pomiarów godzinowych."""
         
-        # Próba pobrania danych głównych
+        # 1. Pobranie danych głównych (User Data)
         try:
             data = await self._fetch_and_parse()
         except EnergaAuthError:
-            _LOGGER.warning("Token expired or unauthorized access during main fetch. Attempting relogin.")
+            _LOGGER.warning("Token expired. Relogging...")
             await self.async_login()
             data = await self._fetch_and_parse()
-        except EnergaConnectionError as e:
-            _LOGGER.error(f"Connection error during main data fetch: {e}")
-            raise # Przekazujemy dalej, aby koordynator ponowił próbę.
-            
-        # Pobieramy dane z ostatniego pełnego dnia i dzisiejszego dnia do teraz
-        now_utc = datetime.now(timezone.utc)
-        yesterday = now_utc.date() - timedelta(days=1)
-
-        start_date = datetime(yesterday.year, yesterday.month, yesterday.day, tzinfo=timezone.utc).isoformat()
-        end_date = now_utc.isoformat()
         
-        # Pobieranie pomiarów godzinowych
-        try:
-            measurements = await self._fetch_measurements(start_date, end_date)
-            # Agregujemy dane historyczne do głównego słownika
-            data.update(self._process_measurements(measurements))
-        except EnergaAuthError:
-            _LOGGER.warning("Token expired during measurements fetch. Attempting relogin.")
-            await self.async_login()
-            measurements = await self._fetch_measurements(start_date, end_date)
-            data.update(self._process_measurements(measurements))
-        except EnergaConnectionError as e:
-            _LOGGER.error(f"Connection error during measurements fetch: {e}")
-            pass # Ignorujemy, aby nie zepsuć odczytu głównego, jeśli pomiary godzinowe zawiodą.
+        # 2. Pobranie szczegółowych danych dziennych (Wykresy)
+        # Potrzebujemy ID licznika z danych głównych
+        meter_id = data.get("meter_id") 
+        if meter_id:
+             # Pobieramy dla dzisiejszego dnia (od północy)
+            now = datetime.now()
+            today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            timestamp = int(today_midnight.timestamp() * 1000)
+
+            # Pobór (Consumption)
+            try:
+                cons_data = await self._fetch_chart_data(meter_id, timestamp, OBIS_CONSUMPTION)
+                data["daily_pobor"] = self._sum_chart_values(cons_data)
+            except Exception as e:
+                _LOGGER.error(f"Error fetching consumption chart: {e}")
+
+            # Produkcja (Production)
+            try:
+                prod_data = await self._fetch_chart_data(meter_id, timestamp, OBIS_PRODUCTION)
+                data["daily_produkcja"] = self._sum_chart_values(prod_data)
+            except Exception as e:
+                _LOGGER.error(f"Error fetching production chart: {e}")
 
         return data
-    
-    async def _fetch_measurements(self, start_date: str, end_date: str):
-        """Pobiera dane zużycia godzinowego dla podanego zakresu."""
+
+    async def _fetch_chart_data(self, meter_id, timestamp, obis_code):
+        """Pobiera dane wykresu dla konkretnego OBIS code."""
+        # Parametry zgodne z analizą ruchu sieciowego
         params = {
-            "dateFrom": f"{start_date}Z",
-            "dateTo": f"{end_date}Z",
+            "mainChartDate": str(timestamp),
+            "meterPoint": str(meter_id),
+            "type": "DAY",
+            "mo": obis_code # Meter Object determines consumption vs production
         }
-        
+
+        async with self._session.get(
+            f"{BASE_URL}{HISTORY_ENDPOINT}",
+            headers=HEADERS,
+            params=params,
+            ssl=False
+        ) as resp:
+            if resp.status in [401, 403]:
+                 raise EnergaAuthError
+            if resp.status != 200:
+                raise EnergaConnectionError(f"Chart API Error: {resp.status}")
+            
+            return await resp.json()
+
+    def _sum_chart_values(self, json_data):
+        """Sumuje wartości z wykresu (mainChart)."""
+        total = 0.0
         try:
-            async with self._session.get(
-                f"{BASE_URL}{HISTORY_ENDPOINT}", 
-                headers=HEADERS, 
-                params=params,
-                ssl=False
-            ) as resp:
-                if resp.status in [401, 403]:
-                    raise EnergaAuthError(f"Measurements Auth failure: {resp.status}")
-                if resp.status != 200:
-                    # Logujemy, jeśli błąd nie jest 200
-                    _LOGGER.error(f"Failed to fetch measurements: API Status {resp.status}")
-                    return None
-
-                data = await resp.json()
-                return data
-
-        except aiohttp.ClientError as err:
-            raise EnergaConnectionError from err
+            if json_data and "response" in json_data and "mainChart" in json_data["response"]:
+                for point in json_data["response"]["mainChart"]:
+                    # mainChart zawiera listę punktów. Interesuje nas suma wartości z 'zones'
+                    # zones to zazwyczaj lista [strefa1, strefa2, strefa3]
+                    if "zones" in point and point["zones"]:
+                        # Sumujemy wartości ze wszystkich stref dla danej godziny
+                        hourly_sum = sum(val for val in point["zones"] if val is not None)
+                        total += hourly_sum
+        except Exception as e:
+             _LOGGER.error(f"Error parsing chart data: {e}")
+        return round(total, 3)
 
     async def _fetch_and_parse(self):
         """Wewnętrzna funkcja pobierająca dane główne."""
-        try:
-            async with self._session.get(
-                f"{BASE_URL}{DATA_ENDPOINT}", 
-                headers=HEADERS, 
-                ssl=False
-            ) as resp:
-                # Wymuszenie błędu auth dla 401/403
-                if resp.status in [401, 403]:
-                    raise EnergaAuthError(f"Authentication failure: {resp.status}")
-                if resp.status != 200:
-                    raise EnergaConnectionError(f"API Error: {resp.status}")
-                
-                data = await resp.json()
-                return self._parse_json(data)
-        except aiohttp.ClientError as err:
-            raise EnergaConnectionError from err
-
-    def _process_measurements(self, measurements_data):
-        """Przetwarza surowe dane godzinowe i wylicza dzienne zużycie/produkcję."""
-        if not measurements_data or 'response' not in measurements_data:
-            return {"daily_pobor": 0, "daily_produkcja": 0}
-
-        total_pobor = 0
-        total_produkcja = 0
-        today = datetime.now(timezone.utc).date()
-        
-        try:
-            for point in measurements_data['response']['meterPoints']:
-                for m in point['measurements']:
-                    measurement_time = datetime.fromisoformat(m['time']).astimezone(timezone.utc)
-                    
-                    # Interesują nas tylko pomiary z dnia dzisiejszego (do teraz)
-                    if measurement_time.date() == today:
-                        if m['zone'] == 'A+':
-                            total_pobor += m['value']
-                        elif m['zone'] == 'A-':
-                            total_produkcja += m['value']
-                            
-            return {
-                "daily_pobor": round(total_pobor, 3), 
-                "daily_produkcja": round(total_produkcja, 3)
-            }
+        async with self._session.get(
+            f"{BASE_URL}{DATA_ENDPOINT}", 
+            headers=HEADERS, 
+            ssl=False
+        ) as resp:
+            if resp.status in [401, 403]:
+                raise EnergaAuthError
+            if resp.status != 200:
+                raise EnergaConnectionError(f"API Error: {resp.status}")
             
-        except (KeyError, IndexError, TypeError) as e:
-            _LOGGER.error(f"Błąd parsowania danych pomiarowych: {e}")
-            return {"daily_pobor": 0, "daily_produkcja": 0}
+            data = await resp.json()
+            return self._parse_json(data)
 
     def _parse_json(self, json_data):
         """Wyciągnięcie danych głównych."""
@@ -170,18 +147,20 @@ class EnergaAPI:
             meter_point = response['meterPoints'][0]
             measurements = meter_point['lastMeasurements']
             
-            # Pobieramy dane z sekcji umowy
             agreement = response.get('agreementPoints', [{}])[0]
             dealer = agreement.get('dealer', {})
 
             result = {
+                "meter_id": meter_point.get('id'), # Potrzebne do zapytań o wykresy
                 "pobor": None,
                 "produkcja": None,
                 "ppe": meter_point.get('dev'),
                 "tariff": meter_point.get('tariff'),
                 "address": agreement.get('address'),
                 "seller": dealer.get('name'),
-                "contract_date": self._parse_date(dealer.get('start'))
+                "contract_date": self._parse_date(dealer.get('start')),
+                "daily_pobor": 0.0,
+                "daily_produkcja": 0.0
             }
             
             for m in measurements:

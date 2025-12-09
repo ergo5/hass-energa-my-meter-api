@@ -32,17 +32,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     await coordinator.async_config_entry_first_refresh()
 
-    # Definicja wszystkich dostępnych sensorów
     sensors_config = [
-        # Główne sensory (Total Increasing) - dane z lastMeasurements
         ("pobor", "Energa Pobór (Import) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         ("produkcja", "Energa Produkcja (Eksport) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         
-        # Nowe sensory DZIENNE (Zużycie DZIŚ) - Klasa stanu musi być NONE, by uniknąć błędu HA
-        ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, None, None), # FIX: state_class zmieniony na None
-        ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, None, None), # FIX: state_class zmieniony na None
+        # Sensory Dzienne - state_class None
+        ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, None, None), 
+        ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, None, None), 
         
-        # Sensory diagnostyczne
         ("tariff", "Taryfa", None, None, None, EntityCategory.DIAGNOSTIC),
         ("address", "Adres PPE", None, None, None, EntityCategory.DIAGNOSTIC),
         ("seller", "Sprzedawca", None, None, None, EntityCategory.DIAGNOSTIC),
@@ -52,14 +49,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     entities = []
     for key, name, unit, dev_class, state_class, category in sensors_config:
-        if coordinator.data.get(key) is not None or key.startswith("daily_"):
+        # Check if key exists in data to avoid creating empty sensors
+        if key in coordinator.data:
             entities.append(EnergaSensor(coordinator, key, name, unit, dev_class, state_class, category))
     
     async_add_entities(entities)
 
 class EnergaSensor(CoordinatorEntity, SensorEntity):
-    """Sensor Energa."""
-
     def __init__(self, coordinator, data_key, name, unit, dev_class, state_class, category):
         super().__init__(coordinator)
         self._data_key = data_key
@@ -78,9 +74,7 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        if self.coordinator.data:
-            return self.coordinator.data.get(self._data_key)
-        return None
+        return self.coordinator.data.get(self._data_key)
 
     @property
     def device_info(self):
@@ -89,5 +83,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             "name": "Energa Licznik",
             "manufacturer": "Energa Operator",
             "model": "Mobile API",
-            "sw_version": "1.2.4", # AKTUALIZACJA WERSJI
+            "sw_version": "1.3.0",
         }

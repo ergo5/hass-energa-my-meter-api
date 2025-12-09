@@ -6,14 +6,16 @@ CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_TOKEN = "token"
 
-# Nowe API (odkryte 02.12.2025)
 BASE_URL = "https://api-mojlicznik.energa-operator.pl"
 LOGIN_ENDPOINT = "/dp/apihelper/UserLogin"
 DATA_ENDPOINT = "/dp/resources/user/data"
-# NOWY ENDPOINT DANYCH GODZINOWYCH (KOREKTA Z BŁĘDU 404)
-HISTORY_ENDPOINT = "/dp/resources/user/data/measurements" 
+# Correct endpoint verified by network trace
+HISTORY_ENDPOINT = "/dp/resources/mchart"
 
-# Nagłówki emulujące aplikację iOS
+# OBIS codes for identifying data types in mchart request
+OBIS_CONSUMPTION = "1-0:1.8.0*255"
+OBIS_PRODUCTION = "1-0:2.8.0*255"
+
 HEADERS = {
     "User-Agent": "Energa/3.0.3 (pl.energa-operator.mojlicznik; build:1; iOS 26.2.0) Alamofire/3.0.3",
     "Accept-Language": "pl-PL;q=1.0",
