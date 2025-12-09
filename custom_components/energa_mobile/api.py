@@ -1,8 +1,8 @@
 """API Client for Energa Mobile."""
 import logging
 import aiohttp
-from datetime import datetime, timedelta, timezone
-from .const import BASE_URL, LOGIN_ENDPOINT, DATA_ENDPOINT, HEADERS, HISTORY_ENDPOINT, OBIS_CONSUMPTION, OBIS_PRODUCTION
+from datetime import datetime
+from .const import BASE_URL, LOGIN_ENDPOINT, DATA_ENDPOINT, HEADERS, HISTORY_ENDPOINT, MO_CONSUMPTION, MO_PRODUCTION
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class EnergaAPI:
         self._session = session
 
     async def async_login(self):
-        """Logowanie do API."""
+        """Logowanie do API (Metoda iOS - stabilna)."""
         params = {
             "clientOS": "ios",
             "notifyService": "APNs",
@@ -51,7 +51,11 @@ class EnergaAPI:
             raise EnergaConnectionError from err
 
     async def async_get_data(self):
-        """Pobranie danych głównych i pomiarów godzinowych."""
+        """
+        Pobranie danych (Hybryda v1.5.0).
+        1. Dane główne przez UserData.
+        2. Wykresy przez mchart (logika ze starej integracji).
+        """
         
         # 1. Pobranie danych głównych (User Data)
         try:
@@ -61,39 +65,38 @@ class EnergaAPI:
             await self.async_login()
             data = await self._fetch_and_parse()
         
-        # 2. Pobranie szczegółowych danych dziennych (Wykresy)
-        # Potrzebujemy ID licznika z danych głównych
+        # 2. Pobranie danych godzinowych (Wykresy)
         meter_id = data.get("meter_id") 
         if meter_id:
-             # Pobieramy dla dzisiejszego dnia (od północy)
+            # Timestamp: Logika z connector.py starej integracji
+            # Bierzemy czas lokalny, zerujemy godziny, zamieniamy na timestamp * 1000
             now = datetime.now()
             today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
             timestamp = int(today_midnight.timestamp() * 1000)
 
-            # Pobór (Consumption)
+            # Pobór (A+)
             try:
-                cons_data = await self._fetch_chart_data(meter_id, timestamp, OBIS_CONSUMPTION)
+                cons_data = await self._fetch_chart_data(meter_id, timestamp, MO_CONSUMPTION)
                 data["daily_pobor"] = self._sum_chart_values(cons_data)
             except Exception as e:
                 _LOGGER.error(f"Error fetching consumption chart: {e}")
 
-            # Produkcja (Production)
+            # Produkcja (A-)
             try:
-                prod_data = await self._fetch_chart_data(meter_id, timestamp, OBIS_PRODUCTION)
+                prod_data = await self._fetch_chart_data(meter_id, timestamp, MO_PRODUCTION)
                 data["daily_produkcja"] = self._sum_chart_values(prod_data)
             except Exception as e:
                 _LOGGER.error(f"Error fetching production chart: {e}")
 
         return data
 
-    async def _fetch_chart_data(self, meter_id, timestamp, obis_code):
-        """Pobiera dane wykresu dla konkretnego OBIS code."""
-        # Parametry zgodne z analizą ruchu sieciowego
+    async def _fetch_chart_data(self, meter_id, timestamp, mo_type):
+        """Pobiera dane wykresu (Endpoint /mchart)."""
         params = {
             "mainChartDate": str(timestamp),
             "meterPoint": str(meter_id),
-            "type": "DAY",
-            "mo": obis_code # Meter Object determines consumption vs production
+            "type": "DAY",  # EnergaStatsTypes.DAY ze starej integracji
+            "mo": mo_type   # 'A+' lub 'A-' (Naprawione!)
         }
 
         async with self._session.get(
@@ -105,20 +108,19 @@ class EnergaAPI:
             if resp.status in [401, 403]:
                  raise EnergaAuthError
             if resp.status != 200:
-                raise EnergaConnectionError(f"Chart API Error: {resp.status}")
+                _LOGGER.error(f"Chart API Error {resp.status} for {mo_type}")
+                return None
             
             return await resp.json()
 
     def _sum_chart_values(self, json_data):
-        """Sumuje wartości z wykresu (mainChart)."""
+        """Sumuje wartości z wykresu (Parsowanie JSON)."""
         total = 0.0
         try:
             if json_data and "response" in json_data and "mainChart" in json_data["response"]:
                 for point in json_data["response"]["mainChart"]:
-                    # mainChart zawiera listę punktów. Interesuje nas suma wartości z 'zones'
-                    # zones to zazwyczaj lista [strefa1, strefa2, strefa3]
                     if "zones" in point and point["zones"]:
-                        # Sumujemy wartości ze wszystkich stref dla danej godziny
+                        # Sumujemy wartości ze wszystkich stref (ignorując null)
                         hourly_sum = sum(val for val in point["zones"] if val is not None)
                         total += hourly_sum
         except Exception as e:
@@ -141,7 +143,7 @@ class EnergaAPI:
             return self._parse_json(data)
 
     def _parse_json(self, json_data):
-        """Wyciągnięcie danych głównych."""
+        """Parsowanie danych głównych."""
         try:
             response = json_data['response']
             meter_point = response['meterPoints'][0]
@@ -151,7 +153,7 @@ class EnergaAPI:
             dealer = agreement.get('dealer', {})
 
             result = {
-                "meter_id": meter_point.get('id'), # Potrzebne do zapytań o wykresy
+                "meter_id": meter_point.get('id'), # ID potrzebne do wykresów
                 "pobor": None,
                 "produkcja": None,
                 "ppe": meter_point.get('dev'),

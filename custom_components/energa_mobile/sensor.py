@@ -27,19 +27,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         _LOGGER,
         name="energa_mobile_coordinator",
         update_method=api.async_get_data,
-        update_interval=timedelta(hours=6), 
+        update_interval=timedelta(hours=1),
     )
 
     await coordinator.async_config_entry_first_refresh()
 
     sensors_config = [
+        # Główne liczniki
         ("pobor", "Energa Pobór (Import) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         ("produkcja", "Energa Produkcja (Eksport) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
         
-        # Sensory Dzienne - state_class None
+        # Sensory Dzienne (Przywrócone!)
         ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, None, None), 
         ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, None, None), 
         
+        # Diagnostyka
         ("tariff", "Taryfa", None, None, None, EntityCategory.DIAGNOSTIC),
         ("address", "Adres PPE", None, None, None, EntityCategory.DIAGNOSTIC),
         ("seller", "Sprzedawca", None, None, None, EntityCategory.DIAGNOSTIC),
@@ -49,7 +51,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     entities = []
     for key, name, unit, dev_class, state_class, category in sensors_config:
-        # Check if key exists in data to avoid creating empty sensors
         if key in coordinator.data:
             entities.append(EnergaSensor(coordinator, key, name, unit, dev_class, state_class, category))
     
@@ -83,5 +84,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             "name": "Energa Licznik",
             "manufacturer": "Energa Operator",
             "model": "Mobile API",
-            "sw_version": "1.3.0",
+            "sw_version": "1.5.0",
         }
