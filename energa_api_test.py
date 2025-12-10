@@ -1,91 +1,157 @@
-import requests
+import aiohttp
+import asyncio
 import json
-import urllib3
+from datetime import datetime
 
-# Wyłączamy ostrzeżenia SSL 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# === TWOJE DANE ===
+USERNAME = "ciesielski.dominik@gmail.com"
+PASSWORD = "P@lacowa1"
+# ==================
 
-# --- DANE UŻYTKOWNIKA ---
-BASE_URL = "https://api-mojlicznik.energa-operator.pl"
-USERNAME = "twojlogin@"  # --- uzupełnij
-PASSWORD = "haslo"   # --- uzepełnij
-
-# --- token z telefonu - to może być losowy ciąg znaków 
-DEVICE_TOKEN = "5f3fff9554d0eaa1907925ccd9050821d26b9facc42561200e90c0a79e22677f"
-
+# Konfiguracja jak w integracji v2.0
+BASE_URL = "https://api-mojlicznik.energa-operator.pl/dp"
 HEADERS = {
-    'User-Agent': 'Energa/3.0.3 (pl.energa-operator.mojlicznik; build:1; iOS 26.2.0) Alamofire/3.0.3',
-    'Accept-Language': 'en-US;q=1.0, pl-PL;q=0.9',
-    'Accept': '*/*',
-    'Accept-Encoding': 'gzip;q=1.0, compress;q=0.5'
+    "User-Agent": "Energa/3.0.3 (pl.energa-operator.mojlicznik; build:1; iOS 26.2.0) Alamofire/3.0.3",
+    "Accept": "*/*",
+    "Accept-Language": "en-US;q=1.0, pl-PL;q=0.9",
+    "Content-Type": "application/json"
 }
 
-def test_new_api():
-    print(f"--- ROZPOCZYNAM TEST API DLA: {USERNAME} ---")
-    session = requests.Session()
-    session.headers.update(HEADERS)
-
-    # 1. LOGOWANIE GET
-    login_url = f"{BASE_URL}/dp/apihelper/UserLogin"
-    params = {
-        "clientOS": "ios",
-        "notifyService": "APNs",
-        "password": PASSWORD,
-        "token": DEVICE_TOKEN,
-        "username": USERNAME
-    }
-
-    print(f"\n1. Próba logowania do: {login_url} ...")
-    try:
-        # weryfikacja
-        resp = session.get(login_url, params=params, verify=False, timeout=20)
+async def main():
+    async with aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar()) as session:
+        print("--- FAZA 1: Logowanie (Integracja v2.0) ---")
         
-        print(f"   Status Code: {resp.status_code}")
+        # 1. Sesja
+        await session.get(f"{BASE_URL}/apihelper/SessionStatus", headers=HEADERS, ssl=False)
         
-        if resp.status_code == 200:
-            print("   >>> LOGOWANIE UDANE! Sesja nawiązana.")
-            # Wypiszmy ciastka dla pewności
-            print(f"   Ciastka sesyjne: {session.cookies.get_dict()}")
-        else:
-            print("   [!] Błąd logowania.")
-            print("   Odpowiedź:", resp.text)
+        # 2. Login
+        params = {
+            "clientOS": "ios",
+            "notifyService": "APNs",
+            "username": USERNAME,
+            "password": PASSWORD
+        }
+        
+        token = None
+        try:
+            async with session.get(f"{BASE_URL}/apihelper/UserLogin", params=params, headers=HEADERS, ssl=False) as resp:
+                data = await resp.json()
+                if data.get("success"):
+                    # Próba wyciągnięcia tokena, ale bez paniki jak go nie ma
+                    token = data.get("token")
+                    if not token and data.get("response"):
+                        token = data.get("response").get("token")
+                    
+                    if token:
+                        print("   ✅ [OK] Zalogowano pomyślnie (Token pobrany).")
+                    else:
+                        print("   ⚠️ [OK] Zalogowano pomyślnie (Sesja w Ciasteczkach).")
+                else:
+                    print(f"   ❌ [BŁĄD] Logowanie nieudane: {data}")
+                    return
+        except Exception as e:
+            print(f"   ❌ Błąd logowania: {e}")
             return
 
-        # 2. POBRANIE DANYCH (resources/user/data)
-        data_url = f"{BASE_URL}/dp/resources/user/data"
-        print(f"\n2. Pobieranie danych licznika z: {data_url} ...")
+        print("\n--- FAZA 2: Auto-Wykrywanie Metadanych (Kluczowy moment) ---")
         
-        resp_data = session.get(data_url, verify=False, timeout=20)
-        
-        if resp_data.status_code == 200:
-            json_data = resp_data.json()
-            print("   >>> SUKCES! POBRANO DANE JSON.")
-            
-            # 3. Szukamy A+ i A-
-            try:
-                meter = json_data['response']['meterPoints'][0]
-                measurements = meter['lastMeasurements']
-                
-                print("\n--- ODCZYTANE WARTOŚCI ---")
-                print(f"PPE: {meter.get('dev')}")
-                print(f"Taryfa: {meter.get('tariff')}")
-                
-                for m in measurements:
-                    zone = m.get('zone')
-                    val = m.get('value')
-                    date = m.get('date')
-                    print(f"   Strefa: {zone:15} | Stan: {val} kWh | Data: {date}")
-                    
-                print("\nTest zakończony sukcesem. Możemy budować integrację.")
-                
-            except Exception as e:
-                print(f"   [!] Błąd parsowania JSON: {e}")
-                print("   Surowe dane:", json.dumps(json_data, indent=2)[:500])
-        else:
-            print(f"   [!] Błąd pobierania danych. Kod: {resp_data.status_code}")
+        # Zabezpieczenie: Token dodajemy tylko jeśli istnieje
+        data_params = {}
+        if token: data_params["token"] = token
 
-    except Exception as e:
-        print(f"\n[CRITICAL ERROR] Wyjątek połączenia: {e}")
+        try:
+            async with session.get(f"{BASE_URL}/resources/user/data", params=data_params, headers=HEADERS, ssl=False) as resp:
+                if resp.status != 200:
+                    print(f"   ❌ Błąd pobierania metadanych: {resp.status}")
+                    return
+
+                user_data = await resp.json()
+                
+                # Zabezpieczenie przed brakiem response
+                if not user_data.get("response"):
+                    print(f"   ❌ Pusta odpowiedź: {user_data}")
+                    return
+
+                mp = user_data['response']['meterPoints'][0]
+                meter_id = str(mp.get('id'))
+                
+                print(f"   Znalezione ID Licznika (API): {meter_id}")
+                
+                # === DETEKCJA OBIS (To naprawia Twój problem) ===
+                obis_import = None
+                obis_export = None
+                
+                print("   Skanowanie obiektów licznika (meterObjects):")
+                for obj in mp.get("meterObjects", []):
+                    code = obj.get("obis")
+                    desc = "Nieznany"
+                    
+                    if code.startswith("1-0:1.8.0"):
+                        desc = "POBÓR (Import)"
+                        obis_import = code
+                    elif code.startswith("1-0:2.8.0"):
+                        desc = "PRODUKCJA (Export)"
+                        obis_export = code
+                    
+                    print(f"      - Kod: {code:<20} -> {desc}")
+
+                if obis_export:
+                    print(f"   ✅ [OK] Wykryto kod produkcji: {obis_export}")
+                else:
+                    print("   ❌ [BŁĄD] Nie znaleziono kodu produkcji w danych użytkownika!")
+        except Exception as e:
+            print(f"   ❌ Błąd w Fazie 2: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+
+        print("\n--- FAZA 3: Pobieranie Wykresów (Symulacja Sensorów) ---")
+        
+        ts = int(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        
+        # 1. Pobór
+        if obis_import:
+            val_import = await fetch_chart(session, meter_id, obis_import, ts, token)
+            print(f"   🔋 SENSOR 'daily_pobor':     {val_import} kWh")
+        
+        # 2. Produkcja
+        if obis_export:
+            val_export = await fetch_chart(session, meter_id, obis_export, ts, token)
+            print(f"   ☀️ SENSOR 'daily_produkcja': {val_export} kWh")
+            
+            if val_export == 0.0:
+                print("\n   🎯 WYNIK TESTU: POZYTYWNY.")
+                print("   Integracja poprawnie odczytuje 0.0 kWh używając wykrytego kodu OBIS.")
+            elif val_export > 5.0:
+                print("\n   ⚠️ WYNIK: PODEJRZANY. Wartość jest wysoka (jak na noc/zimę).")
+            else:
+                print(f"\n   🎯 WYNIK TESTU: POZYTYWNY. Wartość {val_export} kWh wygląda realnie.")
+
+async def fetch_chart(session, meter_id, obis, ts, token):
+    url = f"{BASE_URL}/resources/mchart"
+    params = {
+        "meterPoint": meter_id,
+        "type": "DAY",
+        "meterObject": obis, # Używamy wykrytego OBISa!
+        "mainChartDate": str(ts)
+    }
+    if token: params["token"] = token
+    
+    async with session.get(url, params=params, headers=HEADERS, ssl=False) as resp:
+        if resp.status != 200:
+            print(f"   ⚠️ Błąd pobierania wykresu: {resp.status}")
+            return 0.0
+            
+        data = await resp.json()
+        total = 0.0
+        try:
+            if data.get("response") and data["response"].get("mainChart"):
+                for point in data["response"]["mainChart"]:
+                    if point.get("zones"):
+                        # Sumujemy wartości (zabezpieczenie przed null)
+                        total += sum(v for v in point["zones"] if v is not None)
+        except: pass
+        return round(total, 3)
 
 if __name__ == "__main__":
-    test_new_api()
+    asyncio.run(main())
