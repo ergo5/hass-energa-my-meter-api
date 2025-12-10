@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v2.7.2."""
+"""Sensors for Energa Mobile v2.7.3."""
 from datetime import timedelta
 import logging
 import asyncio

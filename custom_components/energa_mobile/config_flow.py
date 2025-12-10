@@ -1,4 +1,4 @@
-"""Config flow for Energa Mobile integration v2.7.2."""
+"""Config flow for Energa Mobile integration v2.7.3."""
 import logging
 import voluptuous as vol
 from datetime import datetime
@@ -8,10 +8,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
 from .api import EnergaAPI, EnergaAuthError
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD
-
-# Importujemy funkcję wewnątrz metody, aby uniknąć cyklicznych zależności przy starcie
-# To częsty powód błędu "Failed to load..."
-# from .__init__ import run_history_import  <-- USUNIĘTE Z GÓRY PLIKU
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,9 +69,8 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class EnergaOptionsFlow(config_entries.OptionsFlow):
-    def __init__(self, config_entry):
-        self.config_entry = config_entry
-
+    # REMOVED __init__ method to fix the AttributeError
+    
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
@@ -90,7 +85,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             try:
                 await api.async_login()
                 self.hass.config_entries.async_update_entry(self.config_entry, data=user_input)
-                # Przeładowanie, by nowe hasło zadziałało od razu
+                # Reload so the new password takes effect immediately
                 await self.hass.config_entries.async_reload(self.config_entry.entry_id)
                 return self.async_create_entry(title="", data={})
             except EnergaAuthError: errors["base"] = "invalid_auth"
@@ -107,20 +102,20 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         )
 
     async def async_step_history(self, user_input=None):
-        # Importujemy tutaj, żeby uniknąć błędu cyklicznego przy ładowaniu
+        # Import inside the method to avoid circular import errors
         from .__init__ import run_history_import
         
-        # Pobieramy instancję API z pamięci HA
-        # Zabezpieczenie: jeśli integracja nie wystartowała (np. błąd hasła), API może nie być w hass.data
+        # Get the API instance from HA memory
+        # Safeguard: if integration didn't start (e.g. wrong password), API might not be in hass.data
         api = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
         
         if not api:
             return self.async_abort(reason="integration_not_ready")
 
-        contract_str = "Nieznana"
+        contract_str = "Unknown"
         default_date = None
         
-        # Bezpieczny dostęp do metadanych
+        # Safe access to metadata
         if api._meter_data and api._meter_data.get("contract_date"):
             c_date = api._meter_data["contract_date"]
             contract_str = str(c_date)
@@ -131,7 +126,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             diff = (datetime.now() - start_date).days
             if diff < 1: diff = 1
             
-            # Uruchamiamy zadanie w tle
+            # Run background task
             self.hass.async_create_task(
                 run_history_import(self.hass, api, self.config_entry.entry_id, start_date, diff)
             )
