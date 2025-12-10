@@ -61,10 +61,10 @@ The integration creates a Device representing your meter with the following enti
 
 These sensors are calculated from **hourly charts** and reset to 0 at midnight.
 
-| Entity Name (PL) | Generated ID (Example) | Description |
+| Entity Name | Generated ID (Example) | Description |
 | :--- | :--- | :--- |
-| **Energa Pobór (Dziś)** | `sensor.energa_pobor_dzis` | Sum of hourly consumption for the current day. |
-| **Energa Produkcja (Dziś)** | `sensor.energa_produkcja_dzis` | Sum of hourly production (PV) for the current day. |
+| **Energa Pobór Dziś** | `sensor.energa_pobor_dzis` | Sum of hourly consumption for the current day. |
+| **Energa Produkcja Dziś** | `sensor.energa_produkcja_dzis` | Sum of hourly production (PV) for the current day. |
 
 ### ℹ️ Informational Sensors (Total Counters)
 
