@@ -91,8 +91,8 @@ These sensors show the raw state of the meter (Last Measurement).
 To get beautiful hourly bars in your Energy Dashboard, you **must use the "Dziś" (Today) sensors**, not the "Stan Licznika" sensors.
 
 1.  Go to **Settings** -> **Dashboards** -> **Energy**.
-2.  **Grid Consumption:** Add source -> Select **`Energa Pobór (Dziś)`**.
-3.  **Return to Grid:** Add source -> Select **`Energa Produkcja (Dziś)`**.
+2.  **Grid Consumption:** Add source -> Select **`Energa Pobór Dziś`**.
+3.  **Return to Grid:** Add source -> Select **`Energa Produkcja Dziś`**.
 
 **Why?** Since Energa updates the "Total" counter only once a day, using it would result in erroneous data display (flat line all day + huge spike at night). The "Today" sensors are built from charts provided by Energa with hourly resolution.
 
