@@ -1,35 +1,45 @@
+from __future__ import annotations
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import ENERGY_KILO_WATT_HOUR
+from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 
-async def async_setup_entry(hass, entry, add_entities):
-    coord = hass.data[DOMAIN][entry.entry_id]
+async def async_setup_entry(hass, entry, add):
+    coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    sensors = [
-        EnergaTotalSensor(coord, "total_aplus", "Energa Total A+", ENERGY_KILO_WATT_HOUR),
-        EnergaTotalSensor(coord, "total_aminus", "Energa Total A-", ENERGY_KILO_WATT_HOUR),
-        EnergaListSensor(coord, "hourly_aplus", "Energa Hourly A+", ENERGY_KILO_WATT_HOUR),
-        EnergaListSensor(coord, "hourly_aminus", "Energa Hourly A-", ENERGY_KILO_WATT_HOUR),
-    ]
+    device = DeviceInfo(
+        identifiers={(DOMAIN, coordinator.meterpoint)},
+        name=f"Licznik Energa {coordinator.meterpoint}",
+        manufacturer="Energa Operator",
+        model=coordinator.meter_id,
+    )
 
-    add_entities(sensors)
+    add([
+        EnergaTotal(coordinator, "total_aplus", "TOTAL Pobór A+", "mdi:flash", "aplus", device),
+        EnergaTotal(coordinator, "total_aminus", "TOTAL Produkcja A-", "mdi:solar-power", "aminus", device),
+        EnergaHourly(coordinator, "hourly_aplus", "HOURLY Pobór A+", "mdi:flash", "h_aplus", device),
+        EnergaHourly(coordinator, "hourly_aminus", "HOURLY Produkcja A-", "mdi:solar-power", "h_aminus", device),
+    ])
 
-class EnergaBase(SensorEntity):
-    def __init__(self, coord, key, name, unit):
-        self.coordinator = coord
+class EnergaBase(CoordinatorEntity, SensorEntity):
+    def __init__(self, coord, uid, name, icon, field, device):
+        super().__init__(coord)
+        self._attr_unique_id = f"{coord.meterpoint}_{uid}"
         self._attr_name = name
-        self._key = key
-        self._attr_native_unit_of_measurement = unit
+        self._attr_icon = icon
+        self.field = field
+        self._attr_device_info = device
 
     @property
+    def native_unit_of_measurement(self):
+        return "kWh"
+
+class EnergaTotal(EnergaBase):
+    @property
     def native_value(self):
-        return self.coordinator.data[self._key]
+        return self.coordinator.data["total"].get(self.field)
 
-    async def async_update(self):
-        await self.coordinator.async_request_refresh()
-
-class EnergaTotalSensor(EnergaBase):
-    pass
-
-class EnergaListSensor(EnergaBase):
-    pass
+class EnergaHourly(EnergaBase):
+    @property
+    def native_value(self):
+        return self.coordinator.data["hourly"].get(self.field)

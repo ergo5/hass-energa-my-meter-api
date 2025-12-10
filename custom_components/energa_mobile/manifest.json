@@ -1,12 +1,9 @@
 {
   "domain": "energa",
   "name": "Energa Meter",
-  "documentation": "https://example.com",
-  "version": "1.0.0",
-  "codeowners": ["@twoj-nick"],
-  "requirements": [
-    "aiohttp"
-  ],
-  "iot_class": "cloud_polling",
-  "config_flow": true
+  "version": "1.0.1",
+  "documentation": "https://none",
+  "requirements": ["aiohttp"],
+  "codeowners": [],
+  "iot_class": "cloud_polling"
 }
