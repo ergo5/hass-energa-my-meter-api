@@ -1,0 +1,30 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Logowanie do Energa Mobile",
+                "description": "Podaj dane logowania do aplikacji Mój Licznik. Integracja sama wykryje kody taryfowe (OBIS).",
+                "data": {
+                    "username": "Login (E-mail)",
+                    "password": "Hasło"
+                }
+            },
+            "reauth_confirm": {
+                "title": "Zaktualizuj hasło Energa",
+                "description": "Logowanie dla konta {username} nie powiodło się. Wprowadź nowe hasło.",
+                "data": {
+                    "password": "Nowe hasło"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Błąd połączenia",
+            "invalid_auth": "Błędny login lub hasło",
+            "unknown": "Nieznany błąd"
+        },
+        "abort": {
+            "already_configured": "To konto jest już skonfigurowane",
+            "reauth_successful": "Hasło zostało zaktualizowane pomyślnie"
+        }
+    }
+}

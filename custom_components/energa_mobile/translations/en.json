@@ -1,0 +1,30 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Energa Mobile Login",
+                "description": "Enter your Mój Licznik credentials. OBIS codes will be auto-detected.",
+                "data": {
+                    "username": "Username (Email)",
+                    "password": "Password"
+                }
+            },
+            "reauth_confirm": {
+                "title": "Update Energa Password",
+                "description": "Login failed for account {username}. Please enter your new password.",
+                "data": {
+                    "password": "New Password"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Connection error",
+            "invalid_auth": "Invalid username or password",
+            "unknown": "Unexpected error"
+        },
+        "abort": {
+            "already_configured": "Account is already configured",
+            "reauth_successful": "Password updated successfully"
+        }
+    }
+}

@@ -1,4 +1,4 @@
-"""API Client for Energa Mobile v2.1.0."""
+"""API Client for Energa Mobile v2.2.0."""
 import logging
 import aiohttp
 import json

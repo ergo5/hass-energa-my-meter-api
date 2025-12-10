@@ -90,5 +90,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="2.1.0 (OBIS Auto-Detect)"
+            sw_version="2.2.0 (OBIS Auto-Detect)"
         )
