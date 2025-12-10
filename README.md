@@ -71,10 +71,10 @@ These sensors are calculated from **hourly charts** and reset to 0 at midnight.
 These sensors show the raw state of the meter (Last Measurement).
 *> **Note:** Energa typically updates these values only **once every 24h** (e.g., at 4:00 AM). Do NOT use these for the Energy Dashboard.*
 
-| Entity Name (PL) | Generated ID (Example) | Description |
+| Entity Name  | Generated ID (Example) | Description |
 | :--- | :--- | :--- |
-| **Energa Stan Licznika (Pobór)** | `sensor.energa_stan_licznika_pobor` | Total lifetime consumption (OBIS 1.8.0). |
-| **Energa Stan Licznika (Produkcja)** | `sensor.energa_stan_licznika_produkcja` | Total lifetime production (OBIS 2.8.0). |
+| **Energa Stan Licznika Pobór** | `sensor.energa_stan_licznika_pobor` | Total lifetime consumption (OBIS 1.8.0). |
+| **Energa Stan Licznika Produkcja** | `sensor.energa_stan_licznika_produkcja` | Total lifetime production (OBIS 2.8.0). |
 
 ### 🛠️ Diagnostics
 
