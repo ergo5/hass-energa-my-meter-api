@@ -3,21 +3,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import EnergaAPI
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_TOKEN
-import logging
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD
 
 PLATFORMS = ["sensor"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
-    
     api = EnergaAPI(
         entry.data[CONF_USERNAME], 
         entry.data[CONF_PASSWORD],
-        entry.data[CONF_TOKEN],
         session
     )
-
     try: await api.async_login() 
     except: pass
 
