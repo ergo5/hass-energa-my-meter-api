@@ -3,28 +3,32 @@
         "step": {
             "user": {
                 "title": "Logowanie do Energa Mobile",
-                "description": "Podaj dane logowania do aplikacji Mój Licznik. Integracja sama wykryje kody taryfowe (OBIS).",
-                "data": {
-                    "username": "Login (E-mail)",
-                    "password": "Hasło"
-                }
+                "description": "Podaj dane logowania. Integracja sama wykryje kody OBIS.",
+                "data": { "username": "Login", "password": "Hasło" }
             },
             "reauth_confirm": {
-                "title": "Zaktualizuj hasło Energa",
-                "description": "Logowanie dla konta {username} nie powiodło się. Wprowadź nowe hasło.",
-                "data": {
-                    "password": "Nowe hasło"
-                }
+                "title": "Wymagana aktualizacja hasła",
+                "description": "Zaloguj się ponownie dla konta {username}.",
+                "data": { "password": "Nowe hasło" }
             }
         },
-        "error": {
-            "cannot_connect": "Błąd połączenia",
-            "invalid_auth": "Błędny login lub hasło",
-            "unknown": "Nieznany błąd"
-        },
-        "abort": {
-            "already_configured": "To konto jest już skonfigurowane",
-            "reauth_successful": "Hasło zostało zaktualizowane pomyślnie"
+        "error": { "cannot_connect": "Błąd połączenia", "invalid_auth": "Błędne hasło" },
+        "abort": { "already_configured": "Konto już skonfigurowane", "reauth_successful": "Hasło zaktualizowane" }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "menu_options": { "credentials": "Zmień Hasło", "history": "Pobierz Historię" }
+            },
+            "credentials": {
+                "title": "Zmiana Danych",
+                "data": { "username": "Login", "password": "Nowe hasło" }
+            },
+            "history": {
+                "title": "Pobieranie Historii",
+                "description": "**Data umowy:** {contract_date}\n\nWybierz datę początkową. Integracja pobierze dane godzinowe w tle (może to zająć kilka minut).",
+                "data": { "start_date": "Data początkowa" }
+            }
         }
     }
 }

@@ -3,28 +3,32 @@
         "step": {
             "user": {
                 "title": "Energa Mobile Login",
-                "description": "Enter your Mój Licznik credentials. OBIS codes will be auto-detected.",
-                "data": {
-                    "username": "Username (Email)",
-                    "password": "Password"
-                }
+                "description": "Enter credentials.",
+                "data": { "username": "Username", "password": "Password" }
             },
             "reauth_confirm": {
-                "title": "Update Energa Password",
-                "description": "Login failed for account {username}. Please enter your new password.",
-                "data": {
-                    "password": "New Password"
-                }
+                "title": "Update Password",
+                "description": "Re-login for {username}.",
+                "data": { "password": "New Password" }
             }
         },
-        "error": {
-            "cannot_connect": "Connection error",
-            "invalid_auth": "Invalid username or password",
-            "unknown": "Unexpected error"
-        },
-        "abort": {
-            "already_configured": "Account is already configured",
-            "reauth_successful": "Password updated successfully"
+        "error": { "cannot_connect": "Connection error", "invalid_auth": "Invalid auth" },
+        "abort": { "already_configured": "Already configured", "reauth_successful": "Success" }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "menu_options": { "credentials": "Change Password", "history": "Download History" }
+            },
+            "credentials": {
+                "title": "Credentials",
+                "data": { "username": "Username", "password": "New Password" }
+            },
+            "history": {
+                "title": "Download History",
+                "description": "**Contract Date:** {contract_date}\n\nSelect start date. Download runs in background.",
+                "data": { "start_date": "Start Date" }
+            }
         }
     }
 }

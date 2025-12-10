@@ -1,7 +1,6 @@
-"""API Client for Energa Mobile v2.2.0."""
+"""API Client for Energa Mobile v2.7.1."""
 import logging
 import aiohttp
-import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from .const import BASE_URL, LOGIN_ENDPOINT, SESSION_ENDPOINT, DATA_ENDPOINT, CHART_ENDPOINT, HEADERS
@@ -17,149 +16,85 @@ class EnergaAPI:
         self._password = password
         self._session = session
         self._token = None
-        self._meter_data = None # Cache metadanych (ID, OBIS)
+        self._meter_data = None
 
     async def async_login(self):
-        """Logowanie z obsługą Ciasteczek i Tokena."""
         try:
-            # 1. Inicjalizacja sesji
             await self._api_get(SESSION_ENDPOINT)
-            
-            # 2. Logowanie
-            params = {
-                "clientOS": "ios",
-                "notifyService": "APNs",
-                "username": self._username,
-                "password": self._password
-            }
-            
-            url = f"{BASE_URL}{LOGIN_ENDPOINT}"
-            async with self._session.get(url, headers=HEADERS, params=params, ssl=False) as resp:
-                if resp.status != 200:
-                    raise EnergaConnectionError(f"Login HTTP Error: {resp.status}")
-                
-                try:
-                    data = await resp.json()
-                except:
-                    raise EnergaConnectionError("Invalid JSON response during login")
-
-                if not data.get("success"):
-                    _LOGGER.error(f"Login failed: {data}")
-                    raise EnergaAuthError("Invalid credentials")
-                
-                # Próba wyciągnięcia tokena (jeśli jest, to super, jak nie - działamy na cookies)
-                self._token = data.get("token")
-                if not self._token and data.get("response"):
-                    self._token = data.get("response").get("token")
-                
+            params = {"clientOS": "ios", "notifyService": "APNs", "username": self._username, "password": self._password}
+            async with self._session.get(f"{BASE_URL}{LOGIN_ENDPOINT}", headers=HEADERS, params=params, ssl=False) as resp:
+                if resp.status != 200: raise EnergaConnectionError(f"Login HTTP {resp.status}")
+                try: data = await resp.json()
+                except: raise EnergaConnectionError("Invalid JSON")
+                if not data.get("success"): raise EnergaAuthError("Invalid credentials")
+                self._token = data.get("token") or (data.get("response") or {}).get("token")
                 return True
-
-        except aiohttp.ClientError as err:
-            raise EnergaConnectionError from err
+        except aiohttp.ClientError as err: raise EnergaConnectionError from err
 
     async def async_get_data(self):
-        """Pobiera dane dzienne (licznikowe + wykresy)."""
-        try:
-            # Pobierz metadane jeśli ich nie ma (pierwsze uruchomienie)
-            if not self._meter_data:
-                self._meter_data = await self._fetch_user_metadata()
-            
-            # Oblicz północ dla bieżącego dnia
-            tz_warsaw = ZoneInfo("Europe/Warsaw")
-            now = datetime.now(tz_warsaw)
-            midnight_ts = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
-
-            data = self._meter_data.copy()
-            
-            # 1. Wykres Poboru (A+) - sumowanie godzin
-            if data.get("obis_plus"):
-                vals = await self._fetch_chart(data["meter_point_id"], data["obis_plus"], midnight_ts)
-                data["daily_pobor"] = sum(vals)
-            else:
-                data["daily_pobor"] = 0.0
-            
-            # 2. Wykres Produkcji (A-) - sumowanie godzin
-            if data.get("obis_minus"):
-                vals = await self._fetch_chart(data["meter_point_id"], data["obis_minus"], midnight_ts)
-                data["daily_produkcja"] = sum(vals)
-            else:
-                data["daily_produkcja"] = 0.0
-
-            return data
-
-        except EnergaAuthError:
-            _LOGGER.info("Session expired. Re-logging...")
-            await self.async_login()
-            # Po przelogowaniu odświeżamy metadane, bo mogły wygasnąć
-            self._meter_data = await self._fetch_user_metadata()
-            return await self.async_get_data()
-
-    async def _fetch_user_metadata(self):
-        """Wykrywa kody OBIS z API."""
-        json_data = await self._api_get(DATA_ENDPOINT)
+        """Pobiera dane bieżące (sumy dzienne) dla sensorów."""
+        if not self._meter_data: self._meter_data = await self._fetch_user_metadata()
+        tz = ZoneInfo("Europe/Warsaw")
+        ts = int(datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        data = self._meter_data.copy()
         
-        if not json_data.get("response"):
-            raise EnergaConnectionError("Empty response from user data")
+        if data.get("obis_plus"):
+            vals = await self._fetch_chart(data["meter_point_id"], data["obis_plus"], ts)
+            data["daily_pobor"] = sum(vals)
+        if data.get("obis_minus"):
+            vals = await self._fetch_chart(data["meter_point_id"], data["obis_minus"], ts)
+            data["daily_produkcja"] = sum(vals)
+        return data
 
-        mp = json_data["response"]["meterPoints"][0]
-        ag = json_data["response"].get("agreementPoints", [{}])[0]
-
-        result = {
-            "meter_point_id": mp.get("id"),
-            "ppe": mp.get("dev"),
-            "tariff": mp.get("tariff"),
-            "address": ag.get("address"),
-            # Wartości domyślne
-            "daily_pobor": 0.0,
-            "daily_produkcja": 0.0,
-            "total_plus": 0.0,
-            "total_minus": 0.0,
-            "obis_plus": None,
-            "obis_minus": None
-        }
-
-        # Stany licznika (Totals)
-        for m in mp.get("lastMeasurements", []):
-            zone = m.get("zone", "")
-            if "A+" in zone: result["total_plus"] = float(m.get("value", 0))
-            if "A-" in zone: result["total_minus"] = float(m.get("value", 0))
-
-        # Detekcja OBIS (Klucz do sukcesu)
-        for obj in mp.get("meterObjects", []):
-            obis = obj.get("obis", "")
-            if obis.startswith("1-0:1.8.0"): result["obis_plus"] = obis
-            elif obis.startswith("1-0:2.8.0"): result["obis_minus"] = obis
-
+    async def async_get_history_hourly(self, date: datetime):
+        """Pobiera pełne wektory godzinowe dla historycznego dnia."""
+        if not self._meter_data: self._meter_data = await self._fetch_user_metadata()
+        ts = int(date.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        result = {"import": [], "export": []}
+        
+        if self._meter_data.get("obis_plus"):
+            result["import"] = await self._fetch_chart(self._meter_data["meter_point_id"], self._meter_data["obis_plus"], ts)
+        if self._meter_data.get("obis_minus"):
+            result["export"] = await self._fetch_chart(self._meter_data["meter_point_id"], self._meter_data["obis_minus"], ts)
         return result
 
-    async def _fetch_chart(self, meter_id, obis, timestamp):
-        """Pobiera wykres dla konkretnego kodu OBIS."""
-        params = {
-            "meterPoint": meter_id,
-            "type": "DAY",
-            "meterObject": obis,
-            "mainChartDate": str(timestamp)
-        }
-        if self._token: params["token"] = self._token
-            
-        data = await self._api_get(CHART_ENDPOINT, params=params)
+    async def _fetch_user_metadata(self):
+        data = await self._api_get(DATA_ENDPOINT)
+        if not data.get("response"): raise EnergaConnectionError("Empty response")
+        mp = data["response"]["meterPoints"][0]
+        ag = data["response"].get("agreementPoints", [{}])[0]
         
+        c_date = None
         try:
-            values = []
-            for point in data["response"]["mainChart"]:
-                zones = point.get("zones", [])
-                val = zones[0] if zones and zones[0] is not None else 0.0
-                values.append(val)
-            return values
+            start_ts = ag.get("dealer", {}).get("start")
+            if start_ts: c_date = datetime.fromtimestamp(int(start_ts) / 1000).date()
+        except: pass
+
+        res = {
+            "meter_point_id": mp.get("id"), "ppe": mp.get("dev"), "tariff": mp.get("tariff"), 
+            "address": ag.get("address"), "contract_date": c_date,
+            "daily_pobor": 0.0, "daily_produkcja": 0.0, "total_plus": 0.0, "total_minus": 0.0, 
+            "obis_plus": None, "obis_minus": None
+        }
+        for m in mp.get("lastMeasurements", []):
+            if "A+" in m.get("zone", ""): res["total_plus"] = float(m.get("value", 0))
+            if "A-" in m.get("zone", ""): res["total_minus"] = float(m.get("value", 0))
+        for obj in mp.get("meterObjects", []):
+            if obj.get("obis", "").startswith("1-0:1.8.0"): res["obis_plus"] = obj.get("obis")
+            elif obj.get("obis", "").startswith("1-0:2.8.0"): res["obis_minus"] = obj.get("obis")
+        return res
+
+    async def _fetch_chart(self, meter_id, obis, timestamp):
+        params = {"meterPoint": meter_id, "type": "DAY", "meterObject": obis, "mainChartDate": str(timestamp)}
+        if self._token: params["token"] = self._token
+        data = await self._api_get(CHART_ENDPOINT, params=params)
+        try: return [ (p.get("zones", [0])[0] or 0.0) for p in data["response"]["mainChart"] ]
         except: return []
 
     async def _api_get(self, path, params=None):
         url = f"{BASE_URL}{path}"
         final_params = params.copy() if params else {}
-        # Dodajemy token tylko jeśli go mamy (fallback do cookies)
-        if self._token and "token" not in final_params:
-             final_params["token"] = self._token
-
+        if self._token and "token" not in final_params: final_params["token"] = self._token
         async with self._session.get(url, headers=HEADERS, params=final_params, ssl=False) as resp:
             if resp.status == 401: raise EnergaAuthError
             resp.raise_for_status()
