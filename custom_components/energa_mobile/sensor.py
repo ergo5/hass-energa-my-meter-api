@@ -1,89 +1,35 @@
-"""Sensors for Energa Mobile."""
-from datetime import timedelta
-import logging
-from homeassistant.components.sensor import (
-    SensorEntity,
-    SensorDeviceClass,
-    SensorStateClass,
-)
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfEnergy, EntityCategory
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-)
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.const import ENERGY_KILO_WATT_HOUR
 from .const import DOMAIN
 
-_LOGGER = logging.getLogger(__name__)
+async def async_setup_entry(hass, entry, add_entities):
+    coord = hass.data[DOMAIN][entry.entry_id]
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
-    """Setup sensorów."""
-    api = hass.data[DOMAIN][entry.entry_id]
-
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name="energa_mobile_coordinator",
-        update_method=api.async_get_data,
-        update_interval=timedelta(hours=1),
-    )
-
-    await coordinator.async_config_entry_first_refresh()
-
-    sensors_config = [
-        # Sensory Główne (Stany licznika Total - rzadko aktualizowane przez Energę)
-        ("pobor", "Energa Pobór (Import) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
-        ("produkcja", "Energa Produkcja (Eksport) Total", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None),
-        
-        # Sensory Dzienne (Z wykresów - aktualizowane co godzinę)
-        # TO TE SENSORY IDĄ DO PANELU ENERGIA
-        ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None), 
-        ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, None), 
-        
-        # Diagnostyka
-        ("tariff", "Taryfa", None, None, None, EntityCategory.DIAGNOSTIC),
-        ("address", "Adres PPE", None, None, None, EntityCategory.DIAGNOSTIC),
-        ("seller", "Sprzedawca", None, None, None, EntityCategory.DIAGNOSTIC),
-        ("contract_date", "Data umowy", None, None, None, EntityCategory.DIAGNOSTIC),
-        ("ppe", "Numer Licznika", None, None, None, EntityCategory.DIAGNOSTIC),
+    sensors = [
+        EnergaTotalSensor(coord, "total_aplus", "Energa Total A+", ENERGY_KILO_WATT_HOUR),
+        EnergaTotalSensor(coord, "total_aminus", "Energa Total A-", ENERGY_KILO_WATT_HOUR),
+        EnergaListSensor(coord, "hourly_aplus", "Energa Hourly A+", ENERGY_KILO_WATT_HOUR),
+        EnergaListSensor(coord, "hourly_aminus", "Energa Hourly A-", ENERGY_KILO_WATT_HOUR),
     ]
 
-    entities = []
-    for key, name, unit, dev_class, state_class, category in sensors_config:
-        if key in coordinator.data:
-            entities.append(EnergaSensor(coordinator, key, name, unit, dev_class, state_class, category))
-    
-    async_add_entities(entities)
+    add_entities(sensors)
 
-class EnergaSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, data_key, name, unit, dev_class, state_class, category):
-        super().__init__(coordinator)
-        self._data_key = data_key
+class EnergaBase(SensorEntity):
+    def __init__(self, coord, key, name, unit):
+        self.coordinator = coord
         self._attr_name = name
-        self._attr_unique_id = f"energa_{data_key}_{coordinator.config_entry.entry_id}"
+        self._key = key
         self._attr_native_unit_of_measurement = unit
-        self._attr_device_class = dev_class
-        self._attr_state_class = state_class
-        self._attr_entity_category = category
-        
-        if "pobor" in data_key: self._attr_icon = "mdi:transmission-tower-import"
-        elif "produkcja" in data_key: self._attr_icon = "mdi:solar-power"
-        elif "tariff" in data_key: self._attr_icon = "mdi:file-document-outline"
-        elif "address" in data_key: self._attr_icon = "mdi:map-marker"
-        elif "seller" in data_key: self._attr_icon = "mdi:account-tie"
 
     @property
     def native_value(self):
-        return self.coordinator.data.get(self._data_key)
+        return self.coordinator.data[self._key]
 
-    @property
-    def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
-            "name": "Energa Licznik",
-            "manufacturer": "Energa Operator",
-            "model": "Mobile API",
-            "sw_version": "1.6.0",
-        }
+    async def async_update(self):
+        await self.coordinator.async_request_refresh()
+
+class EnergaTotalSensor(EnergaBase):
+    pass
+
+class EnergaListSensor(EnergaBase):
+    pass
