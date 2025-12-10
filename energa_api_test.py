@@ -4,8 +4,8 @@ import json
 from datetime import datetime
 
 # === TWOJE DANE ===
-USERNAME = "ciesielski.dominik@gmail.com"
-PASSWORD = "P@lacowa1"
+USERNAME = "username"
+PASSWORD = "password"
 # ==================
 
 # Konfiguracja jak w integracji v2.0
