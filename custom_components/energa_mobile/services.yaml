@@ -1,0 +1,19 @@
+fetch_history:
+  name: Pobierz historię
+  description: Pobiera historyczne dane godzinowe z API Energi i importuje je do statystyk Home Assistant.
+  fields:
+    start_date:
+      name: Data początkowa
+      description: Data, od której rozpocząć pobieranie (format RRRR-MM-DD).
+      required: true
+      selector:
+        text:
+    days:
+      name: Liczba dni
+      description: Ile dni pobrać (domyślnie 30).
+      required: false
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 365

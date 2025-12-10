@@ -1,4 +1,5 @@
-"""Config flow for Energa Mobile v2.7.1."""
+"""Config flow for Energa Mobile integration v2.7.2."""
+import logging
 import voluptuous as vol
 from datetime import datetime
 from homeassistant import config_entries
@@ -7,13 +8,20 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
 from .api import EnergaAPI, EnergaAuthError
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD
-from .__init__ import run_history_import
+
+# Importujemy funkcję wewnątrz metody, aby uniknąć cyklicznych zależności przy starcie
+# To częsty powód błędu "Failed to load..."
+# from .__init__ import run_history_import  <-- USUNIĘTE Z GÓRY PLIKU
+
+_LOGGER = logging.getLogger(__name__)
 
 class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry): return EnergaOptionsFlow(config_entry)
+    def async_get_options_flow(config_entry):
+        return EnergaOptionsFlow(config_entry)
 
     async def async_step_user(self, user_input=None):
         errors = {}
@@ -27,7 +35,15 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(title=user_input[CONF_USERNAME], data=user_input)
             except EnergaAuthError: errors["base"] = "invalid_auth"
             except Exception: errors["base"] = "cannot_connect"
-        return self.async_show_form(step_id="user", data_schema=vol.Schema({vol.Required(CONF_USERNAME): str, vol.Required(CONF_PASSWORD): str}), errors=errors)
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema({
+                vol.Required(CONF_USERNAME): str,
+                vol.Required(CONF_PASSWORD): str
+            }),
+            errors=errors
+        )
 
     async def async_step_reauth(self, entry_data):
         self.reauth_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
@@ -47,12 +63,24 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="reauth_successful")
             except EnergaAuthError: errors["base"] = "invalid_auth"
             except Exception: errors["base"] = "cannot_connect"
-        return self.async_show_form(step_id="reauth_confirm", data_schema=vol.Schema({vol.Required(CONF_PASSWORD): str}), description_placeholders={"username": self.reauth_entry.data[CONF_USERNAME]}, errors=errors)
+        
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_PASSWORD): str}),
+            description_placeholders={"username": self.reauth_entry.data[CONF_USERNAME]},
+            errors=errors
+        )
+
 
 class EnergaOptionsFlow(config_entries.OptionsFlow):
-    def __init__(self, config_entry): self.config_entry = config_entry
+    def __init__(self, config_entry):
+        self.config_entry = config_entry
+
     async def async_step_init(self, user_input=None):
-        return self.async_show_menu(step_id="init", menu_options=["credentials", "history"])
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["credentials", "history"]
+        )
 
     async def async_step_credentials(self, user_input=None):
         errors = {}
@@ -62,24 +90,57 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             try:
                 await api.async_login()
                 self.hass.config_entries.async_update_entry(self.config_entry, data=user_input)
+                # Przeładowanie, by nowe hasło zadziałało od razu
+                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
                 return self.async_create_entry(title="", data={})
             except EnergaAuthError: errors["base"] = "invalid_auth"
             except Exception: errors["base"] = "cannot_connect"
-        return self.async_show_form(step_id="credentials", data_schema=vol.Schema({vol.Required(CONF_USERNAME, default=self.config_entry.data.get(CONF_USERNAME)): str, vol.Required(CONF_PASSWORD): str}), errors=errors)
+
+        current_user = self.config_entry.data.get(CONF_USERNAME)
+        return self.async_show_form(
+            step_id="credentials",
+            data_schema=vol.Schema({
+                vol.Required(CONF_USERNAME, default=current_user): str,
+                vol.Required(CONF_PASSWORD): str
+            }),
+            errors=errors
+        )
 
     async def async_step_history(self, user_input=None):
-        api = self.hass.data[DOMAIN][self.config_entry.entry_id]
-        c_str = "Nieznana"
-        def_date = None
+        # Importujemy tutaj, żeby uniknąć błędu cyklicznego przy ładowaniu
+        from .__init__ import run_history_import
+        
+        # Pobieramy instancję API z pamięci HA
+        # Zabezpieczenie: jeśli integracja nie wystartowała (np. błąd hasła), API może nie być w hass.data
+        api = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+        
+        if not api:
+            return self.async_abort(reason="integration_not_ready")
+
+        contract_str = "Nieznana"
+        default_date = None
+        
+        # Bezpieczny dostęp do metadanych
         if api._meter_data and api._meter_data.get("contract_date"):
-            c_str = str(api._meter_data["contract_date"])
-            def_date = str(api._meter_data["contract_date"])
+            c_date = api._meter_data["contract_date"]
+            contract_str = str(c_date)
+            default_date = str(c_date)
         
         if user_input is not None:
-            start = datetime.strptime(user_input["start_date"], "%Y-%m-%d")
-            diff = (datetime.now() - start).days
+            start_date = datetime.strptime(user_input["start_date"], "%Y-%m-%d")
+            diff = (datetime.now() - start_date).days
             if diff < 1: diff = 1
-            self.hass.async_create_task(run_history_import(self.hass, api, self.config_entry.entry_id, start, diff))
+            
+            # Uruchamiamy zadanie w tle
+            self.hass.async_create_task(
+                run_history_import(self.hass, api, self.config_entry.entry_id, start_date, diff)
+            )
             return self.async_create_entry(title="", data={})
 
-        return self.async_show_form(step_id="history", data_schema=vol.Schema({vol.Required("start_date", default=def_date): selector.DateSelector()}), description_placeholders={"contract_date": c_str})
+        return self.async_show_form(
+            step_id="history",
+            data_schema=vol.Schema({
+                vol.Required("start_date", default=default_date): selector.DateSelector()
+            }),
+            description_placeholders={"contract_date": contract_str}
+        )
