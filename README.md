@@ -30,6 +30,9 @@ This is the **v2.0+** rewrite of the integration. It utilizes the official **Mob
 2.  Go to the **Integrations** section.
 3.  Click the menu (three dots) in the top-right corner and select **Custom repositories**.
 4.  Paste the URL of this repository.
+    ```text
+    https://github.com/ergo5/hass-energa-my-meter-api
+    ```
 5.  Select **Integration** as the category and click **Add**.
 6.  Download the integration and **Restart Home Assistant**.
 
