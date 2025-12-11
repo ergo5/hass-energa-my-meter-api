@@ -1,4 +1,4 @@
-"""Config flow for Energa Mobile integration v2.7.3."""
+"""Config flow for Energa Mobile integration v2.7.5."""
 import logging
 import voluptuous as vol
 from datetime import datetime
@@ -69,8 +69,11 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class EnergaOptionsFlow(config_entries.OptionsFlow):
-    # REMOVED __init__ method to fix the AttributeError
-    
+    def __init__(self, config_entry):
+        """Initialize options flow."""
+        # WAŻNE: Przypisujemy do zmiennej z podłogą, aby uniknąć kolizji z read-only property 'config_entry'
+        self._config_entry = config_entry
+
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
@@ -84,14 +87,13 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             api = EnergaAPI(user_input[CONF_USERNAME], user_input[CONF_PASSWORD], session)
             try:
                 await api.async_login()
-                self.hass.config_entries.async_update_entry(self.config_entry, data=user_input)
-                # Reload so the new password takes effect immediately
-                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+                self.hass.config_entries.async_update_entry(self._config_entry, data=user_input)
+                await self.hass.config_entries.async_reload(self._config_entry.entry_id)
                 return self.async_create_entry(title="", data={})
             except EnergaAuthError: errors["base"] = "invalid_auth"
             except Exception: errors["base"] = "cannot_connect"
 
-        current_user = self.config_entry.data.get(CONF_USERNAME)
+        current_user = self._config_entry.data.get(CONF_USERNAME)
         return self.async_show_form(
             step_id="credentials",
             data_schema=vol.Schema({
@@ -102,20 +104,17 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         )
 
     async def async_step_history(self, user_input=None):
-        # Import inside the method to avoid circular import errors
         from .__init__ import run_history_import
         
-        # Get the API instance from HA memory
-        # Safeguard: if integration didn't start (e.g. wrong password), API might not be in hass.data
-        api = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+        # Używamy self._config_entry.entry_id
+        api = self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id)
         
         if not api:
             return self.async_abort(reason="integration_not_ready")
 
-        contract_str = "Unknown"
+        contract_str = "Nieznana"
         default_date = None
         
-        # Safe access to metadata
         if api._meter_data and api._meter_data.get("contract_date"):
             c_date = api._meter_data["contract_date"]
             contract_str = str(c_date)
@@ -126,9 +125,8 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             diff = (datetime.now() - start_date).days
             if diff < 1: diff = 1
             
-            # Run background task
             self.hass.async_create_task(
-                run_history_import(self.hass, api, self.config_entry.entry_id, start_date, diff)
+                run_history_import(self.hass, api, self._config_entry.entry_id, start_date, diff)
             )
             return self.async_create_entry(title="", data={})
 
