@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v2.7.5."""
+"""The Energa Mobile integration v2.7.6."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -8,6 +8,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.components.recorder.statistics import async_import_statistics
 from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
@@ -41,12 +42,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
             # Uruchamiamy w tle
             hass.async_create_task(
-                run_history_import(hass, api, entry.entry_id, start_date, days)
+                run_history_import(hass, api, entry, start_date, days)
             )
         except ValueError:
             _LOGGER.error("Błędny format daty.")
 
-    # Rejestrujemy usługę tylko jeśli jeszcze nie istnieje
     if not hass.services.has_service(DOMAIN, "fetch_history"):
         hass.services.async_register(DOMAIN, "fetch_history", import_history_service, schema=vol.Schema({
             vol.Required("start_date"): str,
@@ -55,13 +55,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     return True
 
-async def run_history_import(hass, api, entry_id, start_date, days):
-    """Import historii z opóźnieniem (Anti-Ban)."""
+async def run_history_import(hass, api, entry, start_date, days):
+    """Import historii (naprawiony 'Invalid source')."""
     _LOGGER.info(f"Energa: Rozpoczynam import historii od {start_date.date()} ({days} dni).")
     
-    # ID statystyk
-    stat_id_imp = f"sensor.energa_pobor_dzis"
-    stat_id_exp = f"sensor.energa_produkcja_dzis"
+    # 1. Znajdujemy poprawne Entity ID w rejestrze
+    ent_reg = er.async_get(hass)
+    
+    # Klucze unique_id muszą pasować do tych w sensor.py: f"energa_{data_key}_{entry_id}"
+    uid_imp = f"energa_daily_pobor_{entry.entry_id}"
+    uid_exp = f"energa_daily_produkcja_{entry.entry_id}"
+    
+    entity_id_imp = ent_reg.async_get_entity_id("sensor", DOMAIN, uid_imp)
+    entity_id_exp = ent_reg.async_get_entity_id("sensor", DOMAIN, uid_exp)
+    
+    if not entity_id_imp:
+        _LOGGER.error(f"Nie znaleziono encji poboru dla unique_id: {uid_imp}")
+        return
+        
+    _LOGGER.debug(f"Energa: Wykryto encje do importu: {entity_id_imp} / {entity_id_exp}")
+
     tz = ZoneInfo("Europe/Warsaw")
 
     for i in range(days):
@@ -69,9 +82,7 @@ async def run_history_import(hass, api, entry_id, start_date, days):
         if target_day.date() >= datetime.now().date(): break
 
         try:
-            # === HAMULEC ===
-            await asyncio.sleep(1.5)
-            # ===============
+            await asyncio.sleep(1.5) # Hamulec
 
             data = await api.async_get_history_hourly(target_day)
             
@@ -79,36 +90,31 @@ async def run_history_import(hass, api, entry_id, start_date, days):
             stats_exp = []
             day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
 
+            # Import (Pobór)
             run_imp = 0.0
             for h, val in enumerate(data.get("import", [])):
                 if val >= 0:
                     run_imp += val
-                    stats_imp.append(StatisticData(
-                        start=day_start+timedelta(hours=h+1), 
-                        state=run_imp, 
-                        sum=0.0
-                    ))
+                    stats_imp.append(StatisticData(start=day_start+timedelta(hours=h+1), state=run_imp, sum=0.0))
 
+            # Export (Produkcja)
             run_exp = 0.0
             for h, val in enumerate(data.get("export", [])):
                 if val >= 0:
                     run_exp += val
-                    stats_exp.append(StatisticData(
-                        start=day_start+timedelta(hours=h+1), 
-                        state=run_exp, 
-                        sum=0.0
-                    ))
+                    stats_exp.append(StatisticData(start=day_start+timedelta(hours=h+1), state=run_exp, sum=0.0))
 
+            # WAŻNE: source='recorder' dla istniejących encji
             if stats_imp:
                 async_import_statistics(hass, StatisticMetaData(
-                    has_mean=False, has_sum=True, name="Energa Pobór (Dziś)", 
-                    source=DOMAIN, statistic_id=stat_id_imp, unit_of_measurement="kWh"
+                    has_mean=False, has_sum=True, name=None, 
+                    source='recorder', statistic_id=entity_id_imp, unit_of_measurement="kWh"
                 ), stats_imp)
             
-            if stats_exp:
+            if stats_exp and entity_id_exp:
                 async_import_statistics(hass, StatisticMetaData(
-                    has_mean=False, has_sum=True, name="Energa Produkcja (Dziś)", 
-                    source=DOMAIN, statistic_id=stat_id_exp, unit_of_measurement="kWh"
+                    has_mean=False, has_sum=True, name=None, 
+                    source='recorder', statistic_id=entity_id_exp, unit_of_measurement="kWh"
                 ), stats_exp)
 
         except Exception as e:

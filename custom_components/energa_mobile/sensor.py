@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v2.7.5."""
+"""Sensors for Energa Mobile v2.7.6."""
 from datetime import timedelta
 import logging
 import asyncio
@@ -75,4 +75,4 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         data = self.coordinator.data or {}
-        return DeviceInfo(identifiers={(DOMAIN, self.coordinator.config_entry.entry_id)}, name=f"Licznik Energa {data.get('meter_point_id')}", manufacturer="Energa-Operator", model=f"PPE: {data.get('ppe')}", configuration_url="https://mojlicznik.energa-operator.pl", sw_version="2.7.5")
+        return DeviceInfo(identifiers={(DOMAIN, self.coordinator.config_entry.entry_id)}, name=f"Licznik Energa {data.get('meter_point_id')}", manufacturer="Energa-Operator", model=f"PPE: {data.get('ppe')}", configuration_url="https://mojlicznik.energa-operator.pl", sw_version="2.7.6")
