@@ -1,6 +1,6 @@
 fetch_history:
   name: Pobierz historię
-  description: Pobiera historyczne dane godzinowe z API Energi i importuje je do statystyk Home Assistant.
+  description: Pobiera historyczne dane godzinowe z API Energi.
   fields:
     start_date:
       name: Data początkowa

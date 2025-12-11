@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v2.7.6."""
+"""Sensors for Energa Mobile v2.7.8."""
 from datetime import timedelta
 import logging
 import asyncio
@@ -71,8 +71,19 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
         if unit != UnitOfEnergy.KILO_WATT_HOUR: self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
-    def native_value(self): return self.coordinator.data.get(self._data_key)
+    def native_value(self):
+        if self.coordinator.data:
+            return self.coordinator.data.get(self._data_key)
+        return None
+
     @property
     def device_info(self) -> DeviceInfo:
         data = self.coordinator.data or {}
-        return DeviceInfo(identifiers={(DOMAIN, self.coordinator.config_entry.entry_id)}, name=f"Licznik Energa {data.get('meter_point_id')}", manufacturer="Energa-Operator", model=f"PPE: {data.get('ppe')}", configuration_url="https://mojlicznik.energa-operator.pl", sw_version="2.7.7")
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.coordinator.config_entry.entry_id)},
+            name=f"Licznik Energa {data.get('meter_point_id', 'Unknown')}",
+            manufacturer="Energa-Operator",
+            model=f"PPE: {data.get('ppe', 'Unknown')}",
+            configuration_url="https://mojlicznik.energa-operator.pl",
+            sw_version="2.7.8"
+        )
