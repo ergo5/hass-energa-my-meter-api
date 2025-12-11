@@ -1,24 +1,25 @@
 <div align="center">
-  <img src="/logo.png" alt="Energa API Logo" width="300"/>
+  <img src="images/logo.png" alt="Energa Mobile API Logo" width="300"/>
 </div>
 
 # Energa Mobile API (OBIS Auto-Detect) for Home Assistant
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration) [![version](https://img.shields.io/github/v/release/ergo5/hass-energa-my-meter-api)](https://github.com/ergo5/hass-energa-my-meter-api/releases)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration) [![version](https://img.shields.io/badge/version-v2.7.7-green)](https://github.com/ergo5/hass-energa-my-meter-api/releases)
 
 A robust, native integration for **Energa Operator** meters in Home Assistant.
 
-This is the **v2.0+** rewrite of the integration. It utilizes the official **Mobile API** (`api-mojlicznik`) and features a **Dynamic OBIS Auto-Detection Engine**. This engine correctly identifies Import and Export registers directly from your meter's metadata, effectively resolving common issues with missing Production (PV) data.
+This integration uses the official **Mobile API** (`api-mojlicznik`) to provide reliable energy data without parsing HTML. It features **Dynamic OBIS Auto-Detection** to correctly identify Import/Export registers (solving missing PV production issues) and includes a powerful **History Importer** to backfill your Energy Dashboard with past data.
 
 ---
 
-## ✨ Key Features
+## ✨ Key Features (v2.7+)
 
-* **OBIS Auto-Detect:** Automatically scans meter objects to find correct codes for **Import (1.8.0)** and **Export (2.8.0)**. No manual configuration required.
-* **True Hourly Data:** Consumption is calculated directly from Energa's **hourly charts**. This ensures your **Energy Dashboard** bars update every hour with precise granularity.
-* **Robust Authentication:** Uses a secure mobile token flow with a Cookie fallback mechanism. Zero CAPTCHA issues.
-* **Energy Dashboard Ready:** "Today" sensors use the `total_increasing` state class, handling daily resets perfectly for Home Assistant's Energy panel.
-* **Plug & Play:** Just enter your Username and Password.
+* **📊 Historic Data Import (New!):** Easily backfill your Energy Dashboard with data from previous months or years directly from the integration configuration menu.
+* **🛡️ Anti-Ban Protection:** The history importer includes a "safety brake" (1.5s delay per day) to prevent Energa's API from blocking your IP address during large downloads.
+* **🔄 Auto-Retry & Self-Healing:** If the API is unavailable, the integration automatically pauses and retries with an increasing backoff interval (2m → 5m → 15m), preventing permanent failures.
+* **⚡ True Hourly Data:** Consumption is calculated from **hourly charts**, ensuring your Energy Dashboard bars update every hour with precise granularity, unlike standard total counters that update only once a day.
+* **🔍 OBIS Auto-Detect:** Automatically scans meter metadata to find the correct codes for **Import (1.8.0)** and **Export (2.8.0)**.
+* **🔐 Secure Auth:** Uses mobile token authentication with a Cookie fallback mechanism. Zero CAPTCHA issues.
 
 ---
 
@@ -27,19 +28,16 @@ This is the **v2.0+** rewrite of the integration. It utilizes the official **Mob
 ### Option 1: HACS (Recommended)
 
 1.  Open **HACS** in Home Assistant.
-2.  Go to the **Integrations** section.
-3.  Click the menu (three dots) in the top-right corner and select **Custom repositories**.
-4.  Paste the URL of this repository.
-    ```text
-    https://github.com/ergo5/hass-energa-my-meter-api
-    ```
-5.  Select **Integration** as the category and click **Add**.
-6.  Download the integration and **Restart Home Assistant**.
+2.  Go to **Integrations** > **Custom repositories**.
+3.  Add this repository URL: `https://github.com/ergo5/hass-energa-my-meter-api`
+4.  Select **Integration** type.
+5.  Install **Energa Mobile**.
+6.  **Restart Home Assistant**.
 
-### Option 2: Manual Installation
+### Option 2: Manual
 
-1.  Download the `energa_mobile` folder from this repository.
-2.  Copy it into the `custom_components` directory in your Home Assistant configuration folder (e.g., `/config/custom_components/energa_mobile`).
+1.  Download the `energa_mobile` folder from the latest release.
+2.  Copy it to your `custom_components` directory (e.g., `/config/custom_components/energa_mobile`).
 3.  Restart Home Assistant.
 
 ---
@@ -53,72 +51,62 @@ This is the **v2.0+** rewrite of the integration. It utilizes the official **Mob
 
 ---
 
-## 📊 Entities
+## 📊 Entities & Energy Dashboard
 
-The integration creates a Device representing your meter with the following entities.
+The integration creates specific sensors for different purposes.
 
-### ⚡ Primary Sensors (For Energy Dashboard)
+### ⚡ For Energy Dashboard (Use These!)
 
-These sensors are calculated from **hourly charts** and reset to 0 at midnight.
+These sensors are calculated from **hourly charts**. They reset to 0 at midnight.
+* **Grid Consumption:** `sensor.energa_pobor_dzis` (Energa Pobór Dziś)
+* **Return to Grid:** `sensor.energa_produkcja_dzis` (Energa Produkcja Dziś)
 
-| Entity Name | Generated ID (Example) | Description |
-| :--- | :--- | :--- |
-| **Energa Pobór Dziś** | `sensor.energa_pobor_dzis` | Sum of hourly consumption for the current day. |
-| **Energa Produkcja Dziś** | `sensor.energa_produkcja_dzis` | Sum of hourly production (PV) for the current day. |
+> **Configuration:**
+> Go to **Dashboards** -> **Energy**.
+> * Under *Grid Consumption*, add `sensor.energa_pobor_dzis`.
+> * Under *Return to Grid*, add `sensor.energa_produkcja_dzis`.
 
-### ℹ️ Informational Sensors (Total Counters)
+### ℹ️ Informational (Total Counters)
 
-These sensors show the raw state of the meter (Last Measurement).
-*> **Note:** Energa typically updates these values only **once every 24h** (e.g., at 4:00 AM). Do NOT use these for the Energy Dashboard.*
-
-| Entity Name  | Generated ID (Example) | Description |
-| :--- | :--- | :--- |
-| **Energa Stan Licznika Pobór** | `sensor.energa_stan_licznika_pobor` | Total lifetime consumption (OBIS 1.8.0). |
-| **Energa Stan Licznika Produkcja** | `sensor.energa_stan_licznika_produkcja` | Total lifetime production (OBIS 2.8.0). |
-
-### 🛠️ Diagnostics
-
-| Entity | Description |
-| :--- | :--- |
-| **Taryfa** | Current tariff plan (e.g., G11, G12). |
-| **Adres** | Physical address of the installation. |
-| **PPE** | Point of Power Consumption (PPE) number. |
+These sensors show the raw state of the meter (Index/Total).
+* **Note:** Energa typically updates these values **only once every 24h**. Do **NOT** use them for the Energy Dashboard, or you will get a single giant bar once a day.
+* `sensor.energa_stan_licznika_pobor` (Total Import)
+* `sensor.energa_stan_licznika_produkcja` (Total Export)
 
 ---
 
-## ⚡ Energy Dashboard Configuration
+## 📅 How to Import History (Backfill)
 
-To get beautiful hourly bars in your Energy Dashboard, you **must use the "Dziś" (Today) sensors**, not the "Stan Licznika" sensors.
+You can download historical data (e.g., from the beginning of your contract) to populate the Home Assistant Energy Dashboard.
 
-1.  Go to **Settings** -> **Dashboards** -> **Energy**.
-2.  **Grid Consumption:** Add source -> Select **`Energa Pobór Dziś`**.
-3.  **Return to Grid:** Add source -> Select **`Energa Produkcja Dziś`**.
+1.  Go to **Settings** -> **Devices & Services**.
+2.  Find **Energa Mobile** and click **Configure**.
+3.  Select **"Pobierz Historię" (Download History)**.
+4.  Select the **Start Date** (e.g., your contract start date or the beginning of the year).
+5.  Click **Submit**.
 
-**Why?** Since Energa updates the "Total" counter only once a day, using it would result in erroneous data display (flat line all day + huge spike at night). The "Today" sensors are built from charts provided by Energa with hourly resolution.
-
----
-
-## 🔄 Migration & History Preservation
-
-If you are switching from an older version of this (or another) Energa integration and want to keep your long-term statistics:
-
-1.  **Note down** the Entity IDs of your old sensors.
-2.  **Delete** the old integration from the *Devices & Services* page.
-3.  **Restart** Home Assistant.
-4.  **Install** and configure this new version.
-5.  Go to **Settings** -> **Entities**.
-6.  Find the new entity (e.g., `sensor.energa_pobor_dzis`).
-7.  Click on it -> **Settings (cog wheel)** -> Change the **Entity ID** to match your old sensor's ID exactly.
-8.  Home Assistant will ask if you want to merge history. Confirm.
+**⚠️ Important Notes:**
+* **Background Process:** The download runs in the background. You can continue using HA.
+* **Safety Delay:** To avoid getting banned by Energa, the process waits **1.5 seconds** between each downloaded day. Importing 1 year of data takes about **10 minutes**.
+* **Visualization:** Data will appear in the Energy Dashboard after Home Assistant processes the statistics (usually within 15-60 minutes).
 
 ---
 
 ## 🐛 Troubleshooting
 
-If you encounter issues (e.g., missing production data), please enable debug logging to check which OBIS codes are being detected by the engine:
+**"Invalid Source" error in logs:**
+This is fixed in v2.7.6+. The integration now correctly identifies existing sensors in the registry.
 
-```yaml
-logger:
-  default: info
-  logs:
-    custom_components.energa_mobile: debug
+**Integration shows "Unavailable":**
+This usually means the Energa API is down or rate-limiting is active. The integration will automatically retry in 2, 5, or 15 minutes. **Do not reload manually**, just wait.
+
+**Debug Logging:**
+If you encounter issues, enable debug logging to see exactly what's happening:
+1.  Go to the Integration tile.
+2.  Click "Enable debug logging".
+3.  Wait for the issue to recur or perform an action.
+4.  Disable debug logging to download the log file.
+
+---
+
+**Disclaimer:** This is a custom integration and is not affiliated with Energa Operator. Use at your own risk.
