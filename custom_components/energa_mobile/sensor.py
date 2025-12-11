@@ -1,13 +1,17 @@
-"""Sensors for Energa Mobile v2.8.3."""
-from datetime import timedelta
+"""Sensors for Energa Mobile v2.8.4 (Serial Number Fix)."""
+from datetime import timedelta, datetime
 import logging
 import asyncio
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorEntity, SensorDeviceClass, SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
+)
 from homeassistant.helpers.entity import DeviceInfo
 from .api import EnergaAuthError, EnergaConnectionError
 from .const import DOMAIN
@@ -27,9 +31,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         ("total_minus", "Energa Stan Licznika (Produkcja)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-import"),
         ("tariff", "Taryfa", None, None, None, "mdi:file-document-outline"),
         ("ppe", "PPE", None, None, None, "mdi:barcode"),
+        ("meter_serial", "Numer Licznika", None, None, None, "mdi:counter"), # <--- NOWY SENSOR
         ("address", "Adres", None, None, None, "mdi:map-marker"),
         ("contract_date", "Data Umowy", None, SensorDeviceClass.DATE, None, "mdi:calendar-check"),
     ]
+
     entities = []
     for key, name, unit, dev_class, state_class, icon in sensors:
         entities.append(EnergaSensor(coordinator, key, name, unit, dev_class, state_class, icon))
@@ -82,14 +88,15 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         data = self.coordinator.data or {}
-        meter_id = data.get("meter_point_id", "Unknown")
         ppe = data.get("ppe", "Unknown")
-        serial = data.get("meter_serial", "")
+        serial = data.get("meter_serial", "Unknown")
+        
         return DeviceInfo(
             identifiers={(DOMAIN, self.coordinator.config_entry.entry_id)},
-            name=f"Licznik Energa {serial if serial else meter_id}",
+            name=f"Licznik {serial}",  # W nazwie licznika
             manufacturer="Energa-Operator",
-            model=f"PPE: {ppe}",
+            # Model pokazuje teraz oba numery:
+            model=f"Licznik: {serial} | PPE: {ppe}", 
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="2.8.3"
+            sw_version="2.8.5"
         )

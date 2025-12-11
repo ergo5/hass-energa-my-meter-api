@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v2.8.3."""
+"""The Energa Mobile integration v2.8.5."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -23,7 +23,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     api = EnergaAPI(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD], session)
 
-    try: await api.async_login()
+    try:
+        await api.async_login()
     except EnergaAuthError as err: raise ConfigEntryAuthFailed(err) from err
     except EnergaConnectionError as err: raise ConfigEntryNotReady(err) from err
 
@@ -48,6 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def run_history_import(hass, api, entry_id, start_date, days):
     _LOGGER.info(f"Energa: Rozpoczynam import historii od {start_date.date()} ({days} dni).")
+    
     ent_reg = er.async_get(hass)
     uid_imp = f"energa_daily_pobor_{entry_id}"
     uid_exp = f"energa_daily_produkcja_{entry_id}"
@@ -60,37 +62,68 @@ async def run_history_import(hass, api, entry_id, start_date, days):
         return
 
     tz = ZoneInfo("Europe/Warsaw")
+
     for i in range(days):
         target_day = start_date + timedelta(days=i)
         if target_day.date() >= datetime.now().date(): break
+        
         try:
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(1.5) # Anti-ban
             data = await api.async_get_history_hourly(target_day)
+            
             stats_imp = []
             stats_exp = []
+            
+            # Ustawiamy start dnia na północ
             day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
 
+            # --- IMPORT (POBÓR) ---
             run_imp = 0.0
+            
+            # Wstawiamy "punkt zerowy" na początku dnia, żeby wymusić reset
+            # To kluczowe dla uniknięcia ujemnych słupków!
+            stats_imp.append(StatisticData(start=day_start, state=0.0, sum=0.0))
+
             for h, val in enumerate(data.get("import", [])):
                 if val >= 0:
                     run_imp += val
-                    stats_imp.append(StatisticData(start=day_start+timedelta(hours=h+1), state=run_imp, sum=run_imp))
+                    # Przesuwamy o godzinę (dane za 00:00-01:00 mają znacznik 01:00)
+                    dt_hour = day_start + timedelta(hours=h+1)
+                    stats_imp.append(StatisticData(
+                        start=dt_hour, 
+                        state=run_imp, 
+                        sum=run_imp
+                    ))
             
+            # --- EXPORT (PRODUKCJA) ---
             run_exp = 0.0
+            stats_exp.append(StatisticData(start=day_start, state=0.0, sum=0.0)) # Punkt zerowy
+
             for h, val in enumerate(data.get("export", [])):
                 if val >= 0:
                     run_exp += val
-                    stats_exp.append(StatisticData(start=day_start+timedelta(hours=h+1), state=run_exp, sum=run_exp))
+                    dt_hour = day_start + timedelta(hours=h+1)
+                    stats_exp.append(StatisticData(
+                        start=dt_hour, 
+                        state=run_exp, 
+                        sum=run_exp
+                    ))
 
             if stats_imp:
                 async_import_statistics(hass, StatisticMetaData(
-                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_imp, unit_of_measurement="kWh"
+                    has_mean=False, has_sum=True, name=None, 
+                    source='recorder', statistic_id=entity_id_imp, unit_of_measurement="kWh"
                 ), stats_imp)
+            
             if stats_exp and entity_id_exp:
                 async_import_statistics(hass, StatisticMetaData(
-                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_exp, unit_of_measurement="kWh"
+                    has_mean=False, has_sum=True, name=None, 
+                    source='recorder', statistic_id=entity_id_exp, unit_of_measurement="kWh"
                 ), stats_exp)
-        except Exception as e: _LOGGER.error(f"Energa Import Error ({target_day}): {e}")
+
+        except Exception as e:
+            _LOGGER.error(f"Energa Import Error ({target_day}): {e}")
+    
     _LOGGER.info(f"Energa: Zakończono import historii.")
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
