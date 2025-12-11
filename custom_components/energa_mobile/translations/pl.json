@@ -3,7 +3,7 @@
         "step": {
             "user": {
                 "title": "Logowanie do Energa Mobile",
-                "description": "Podaj dane logowania do Mój Licznik. Integracja sama wykryje kody OBIS.",
+                "description": "Podaj dane logowania do Mój Licznik. Integracja sama wykryje kody OBIS i liczniki.",
                 "data": {
                     "username": "Login (email)",
                     "password": "Hasło"
@@ -44,7 +44,7 @@
             },
             "history": {
                 "title": "Pobieranie Historii",
-                "description": "**Data umowy:** {contract_date}\n\nWybierz datę początkową. Integracja pobierze dane godzinowe w tle (może to zająć kilka minut ze względu na limity API).",
+                "description": "**Data umowy:** {contract_date}\n\nWybierz datę początkową. Integracja pobierze dane godzinowe w tle dla wszystkich liczników.",
                 "data": {
                     "start_date": "Data początkowa"
                 }

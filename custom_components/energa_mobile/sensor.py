@@ -1,13 +1,17 @@
-"""Sensors for Energa Mobile v2.8.8."""
-from datetime import timedelta, datetime
+"""Sensors for Energa Mobile v2.9.2 (Pretty Names)."""
+from datetime import timedelta
 import logging
 import asyncio
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorEntity, SensorDeviceClass, SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
+)
 from homeassistant.helpers.entity import DeviceInfo
 from .api import EnergaAuthError, EnergaConnectionError
 from .const import DOMAIN
@@ -18,22 +22,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     api = hass.data[DOMAIN][entry.entry_id]
     coordinator = EnergaDataCoordinator(hass, api)
     try: await coordinator.async_config_entry_first_refresh()
-    except Exception: _LOGGER.warning("Energa: Start bez danych (oczekiwanie na API).")
+    except Exception: _LOGGER.warning("Energa: Start bez pełnych danych.")
 
-    sensors = [
-        ("daily_pobor", "Energa Pobór (Dziś)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"), 
-        ("daily_produkcja", "Energa Produkcja (Dziś)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power-variant"),
-        ("total_plus", "Energa Stan Licznika (Pobór)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-export"),
-        ("total_minus", "Energa Stan Licznika (Produkcja)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-import"),
-        ("tariff", "Taryfa", None, None, None, "mdi:file-document-outline"),
-        ("ppe", "PPE", None, None, None, "mdi:barcode"),
-        ("meter_serial", "Numer Licznika", None, None, None, "mdi:counter"), # Nowy
-        ("address", "Adres", None, None, None, "mdi:map-marker"),
-        ("contract_date", "Data Umowy", None, SensorDeviceClass.DATE, None, "mdi:calendar-check"),
-    ]
     entities = []
-    for key, name, unit, dev_class, state_class, icon in sensors:
-        entities.append(EnergaSensor(coordinator, key, name, unit, dev_class, state_class, icon))
+    meters_data = coordinator.data or []
+    if not meters_data: return
+
+    for meter in meters_data:
+        meter_id = meter["meter_point_id"]
+        # Nowe, skrócone nazwy sensorów
+        sensors_config = [
+            ("daily_pobor", "Pobór", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"), 
+            ("daily_produkcja", "Produkcja", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power-variant"),
+            ("total_plus", "Stan Licznika - Pobór", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-export"),
+            ("total_minus", "Stan Licznika - Produkcja", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-import"),
+            ("tariff", "Taryfa", None, None, None, "mdi:file-document-outline"),
+            ("ppe", "Numer PPE", None, None, None, "mdi:barcode"),
+            ("meter_serial", "Numer Licznika", None, None, None, "mdi:counter"),
+            ("address", "Adres", None, None, None, "mdi:map-marker"),
+            ("contract_date", "Data Umowy", None, SensorDeviceClass.DATE, None, "mdi:calendar-check"),
+        ]
+
+        for key, name, unit, dev_class, state_class, icon in sensors_config:
+            entities.append(EnergaSensor(coordinator, meter_id, key, name, unit, dev_class, state_class, icon))
+    
     async_add_entities(entities)
 
 class EnergaDataCoordinator(DataUpdateCoordinator):
@@ -60,11 +72,12 @@ class EnergaDataCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Błąd autoryzacji: {err}") from err
 
 class EnergaSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, data_key, name, unit, dev_class, state_class, icon):
+    def __init__(self, coordinator, meter_id, data_key, name, unit, dev_class, state_class, icon):
         super().__init__(coordinator)
+        self._meter_id = meter_id
         self._data_key = data_key
         self._attr_name = name
-        self._attr_unique_id = f"energa_{data_key}_{coordinator.config_entry.entry_id}"
+        self._attr_unique_id = f"energa_{data_key}_{meter_id}"
         self._attr_native_unit_of_measurement = unit
         self._attr_device_class = dev_class
         self._attr_state_class = state_class
@@ -74,23 +87,28 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self):
         if self.coordinator.data:
-            val = self.coordinator.data.get(self._data_key)
-            if val is None and self._attr_device_class == SensorDeviceClass.ENERGY: return 0.0
-            return val
+            meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), None)
+            if meter_data:
+                val = meter_data.get(self._data_key)
+                if val is None and self._attr_device_class == SensorDeviceClass.ENERGY: return 0.0
+                return val
         if self._attr_device_class == SensorDeviceClass.ENERGY: return 0.0
         return None
 
     @property
     def device_info(self) -> DeviceInfo:
-        data = self.coordinator.data or {}
-        meter_id = data.get("meter_point_id", "Unknown")
-        ppe = data.get("ppe", "Unknown")
-        serial = data.get("meter_serial", "")
+        meter_data = {}
+        if self.coordinator.data:
+             meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), {})
+
+        ppe = meter_data.get("ppe", "Unknown")
+        serial = meter_data.get("meter_serial", str(self._meter_id))
+        
         return DeviceInfo(
-            identifiers={(DOMAIN, self.coordinator.config_entry.entry_id)},
-            name=f"Licznik Energa {serial if serial else meter_id}",
+            identifiers={(DOMAIN, str(self._meter_id))},
+            name=f"Licznik Energa {serial}",
             manufacturer="Energa-Operator",
-            model=f"PPE: {ppe} | Licznik: {serial}", # W polu Model
+            model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="2.8.8"
+            sw_version="2.9.2"
         )

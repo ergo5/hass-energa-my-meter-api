@@ -3,7 +3,7 @@
         "step": {
             "user": {
                 "title": "Energa Mobile Login",
-                "description": "Enter credentials for Mój Licznik. OBIS codes will be auto-detected.",
+                "description": "Enter credentials for Mój Licznik. Meters and OBIS codes will be auto-detected.",
                 "data": {
                     "username": "Username (email)",
                     "password": "Password"
@@ -44,7 +44,7 @@
             },
             "history": {
                 "title": "Download History",
-                "description": "**Contract Date:** {contract_date}\n\nSelect start date. Data download runs in background (may take minutes due to API limits).",
+                "description": "**Contract Date:** {contract_date}\n\nSelect start date. Data download runs in background for all meters.",
                 "data": {
                     "start_date": "Start Date"
                 }

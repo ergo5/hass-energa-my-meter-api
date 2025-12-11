@@ -1,4 +1,4 @@
-"""API Client for Energa Mobile v2.8.8."""
+"""API Client for Energa Mobile v2.9.2."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -16,7 +16,7 @@ class EnergaAPI:
         self._password = password
         self._session = session
         self._token = None
-        self._meter_data = None
+        self._meters_data = []
 
     async def async_login(self):
         try:
@@ -32,62 +32,74 @@ class EnergaAPI:
         except aiohttp.ClientError as err: raise EnergaConnectionError from err
 
     async def async_get_data(self):
-        if not self._meter_data: self._meter_data = await self._fetch_user_metadata()
+        """Pobiera dane dla wszystkich liczników."""
+        if not self._meters_data: 
+            self._meters_data = await self._fetch_all_meters()
+            
         tz = ZoneInfo("Europe/Warsaw")
         ts = int(datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
-        data = self._meter_data.copy()
         
-        if data.get("obis_plus"):
-            vals = await self._fetch_chart(data["meter_point_id"], data["obis_plus"], ts)
-            data["daily_pobor"] = sum(vals)
-        if data.get("obis_minus"):
-            vals = await self._fetch_chart(data["meter_point_id"], data["obis_minus"], ts)
-            data["daily_produkcja"] = sum(vals)
-        return data
+        updated_meters = []
+        for meter in self._meters_data:
+            m_data = meter.copy()
+            if m_data.get("obis_plus"):
+                vals = await self._fetch_chart(m_data["meter_point_id"], m_data["obis_plus"], ts)
+                m_data["daily_pobor"] = sum(vals)
+            if m_data.get("obis_minus"):
+                vals = await self._fetch_chart(m_data["meter_point_id"], m_data["obis_minus"], ts)
+                m_data["daily_produkcja"] = sum(vals)
+            updated_meters.append(m_data)
+            
+        self._meters_data = updated_meters
+        return updated_meters
 
-    async def async_get_history_hourly(self, date: datetime):
-        if not self._meter_data: self._meter_data = await self._fetch_user_metadata()
+    async def async_get_history_hourly(self, meter_point_id, date: datetime):
+        meter = next((m for m in self._meters_data if m["meter_point_id"] == meter_point_id), None)
+        if not meter:
+            await self.async_get_data()
+            meter = next((m for m in self._meters_data if m["meter_point_id"] == meter_point_id), None)
+            if not meter: return {"import": [], "export": []}
+
         ts = int(date.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
         result = {"import": [], "export": []}
-        if self._meter_data.get("obis_plus"):
-            result["import"] = await self._fetch_chart(self._meter_data["meter_point_id"], self._meter_data["obis_plus"], ts)
-        if self._meter_data.get("obis_minus"):
-            result["export"] = await self._fetch_chart(self._meter_data["meter_point_id"], self._meter_data["obis_minus"], ts)
+        
+        if meter.get("obis_plus"):
+            result["import"] = await self._fetch_chart(meter["meter_point_id"], meter["obis_plus"], ts)
+        if meter.get("obis_minus"):
+            result["export"] = await self._fetch_chart(meter["meter_point_id"], meter["obis_minus"], ts)
         return result
 
-    async def _fetch_user_metadata(self):
+    async def _fetch_all_meters(self):
         data = await self._api_get(DATA_ENDPOINT)
         if not data.get("response"): raise EnergaConnectionError("Empty response")
-        mp = data["response"]["meterPoints"][0]
-        ag = data["response"].get("agreementPoints", [{}])[0]
         
-        # Logika PPE i Numeru Licznika
-        ppe_real = ag.get("code") or mp.get("ppe") or mp.get("dev")
-        meter_serial = mp.get("dev") or mp.get("meterNumber") or "Unknown"
-        
-        c_date = None
-        try:
-            start_ts = ag.get("dealer", {}).get("start")
-            if start_ts: c_date = datetime.fromtimestamp(int(start_ts) / 1000).date()
-        except: pass
+        meters_found = []
+        for mp in data["response"].get("meterPoints", []):
+            ag = next((a for a in data["response"].get("agreementPoints", []) if a.get("id") == mp.get("id")), {})
+            if not ag and data["response"].get("agreementPoints"): ag = data["response"]["agreementPoints"][0]
 
-        res = {
-            "meter_point_id": mp.get("id"),
-            "ppe": ppe_real,
-            "meter_serial": meter_serial,
-            "tariff": mp.get("tariff"), 
-            "address": ag.get("address"), 
-            "contract_date": c_date,
-            "daily_pobor": 0.0, "daily_produkcja": 0.0, "total_plus": 0.0, "total_minus": 0.0, 
-            "obis_plus": None, "obis_minus": None
-        }
-        for m in mp.get("lastMeasurements", []):
-            if "A+" in m.get("zone", ""): res["total_plus"] = float(m.get("value", 0))
-            if "A-" in m.get("zone", ""): res["total_minus"] = float(m.get("value", 0))
-        for obj in mp.get("meterObjects", []):
-            if obj.get("obis", "").startswith("1-0:1.8.0"): res["obis_plus"] = obj.get("obis")
-            elif obj.get("obis", "").startswith("1-0:2.8.0"): res["obis_minus"] = obj.get("obis")
-        return res
+            ppe = ag.get("code") or mp.get("ppe") or mp.get("dev") or "Unknown"
+            serial = mp.get("dev") or mp.get("meterNumber") or "Unknown"
+            
+            c_date = None
+            try:
+                start_ts = ag.get("dealer", {}).get("start")
+                if start_ts: c_date = datetime.fromtimestamp(int(start_ts) / 1000).date()
+            except: pass
+
+            meter_obj = {
+                "meter_point_id": mp.get("id"), "ppe": ppe, "meter_serial": serial, "tariff": mp.get("tariff"), 
+                "address": ag.get("address"), "contract_date": c_date, "daily_pobor": 0.0, "daily_produkcja": 0.0, 
+                "total_plus": 0.0, "total_minus": 0.0, "obis_plus": None, "obis_minus": None
+            }
+            for m in mp.get("lastMeasurements", []):
+                if "A+" in m.get("zone", ""): meter_obj["total_plus"] = float(m.get("value", 0))
+                if "A-" in m.get("zone", ""): meter_obj["total_minus"] = float(m.get("value", 0))
+            for obj in mp.get("meterObjects", []):
+                if obj.get("obis", "").startswith("1-0:1.8.0"): meter_obj["obis_plus"] = obj.get("obis")
+                elif obj.get("obis", "").startswith("1-0:2.8.0"): meter_obj["obis_minus"] = obj.get("obis")
+            meters_found.append(meter_obj)
+        return meters_found
 
     async def _fetch_chart(self, meter_id, obis, timestamp):
         params = {"meterPoint": meter_id, "type": "DAY", "meterObject": obis, "mainChartDate": str(timestamp)}
