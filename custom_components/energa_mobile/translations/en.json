@@ -3,31 +3,51 @@
         "step": {
             "user": {
                 "title": "Energa Mobile Login",
-                "description": "Enter credentials.",
-                "data": { "username": "Username", "password": "Password" }
+                "description": "Enter credentials for Mój Licznik. OBIS codes will be auto-detected.",
+                "data": {
+                    "username": "Username (email)",
+                    "password": "Password"
+                }
             },
             "reauth_confirm": {
                 "title": "Update Password",
-                "description": "Re-login for {username}.",
-                "data": { "password": "New Password" }
+                "description": "Re-login for account {username}.",
+                "data": {
+                    "password": "New Password"
+                }
             }
         },
-        "error": { "cannot_connect": "Connection error", "invalid_auth": "Invalid auth" },
-        "abort": { "already_configured": "Already configured", "reauth_successful": "Success" }
+        "error": {
+            "cannot_connect": "Connection error",
+            "invalid_auth": "Invalid authentication",
+            "unknown": "Unknown error"
+        },
+        "abort": {
+            "already_configured": "Account already configured",
+            "reauth_successful": "Password updated successfully"
+        }
     },
     "options": {
         "step": {
             "init": {
-                "menu_options": { "credentials": "Change Password", "history": "Download History" }
+                "menu_options": {
+                    "credentials": "Change Credentials",
+                    "history": "Download History"
+                }
             },
             "credentials": {
-                "title": "Credentials",
-                "data": { "username": "Username", "password": "New Password" }
+                "title": "Update Credentials",
+                "data": {
+                    "username": "Username",
+                    "password": "New Password"
+                }
             },
             "history": {
                 "title": "Download History",
-                "description": "**Contract Date:** {contract_date}\n\nSelect start date. Download runs in background.",
-                "data": { "start_date": "Start Date" }
+                "description": "**Contract Date:** {contract_date}\n\nSelect start date. Data download runs in background (may take minutes due to API limits).",
+                "data": {
+                    "start_date": "Start Date"
+                }
             }
         }
     }

@@ -1,4 +1,4 @@
-"""Config flow for Energa Mobile integration v2.8.5."""
+"""Config flow for Energa Mobile integration v2.8.6."""
 import voluptuous as vol
 from datetime import datetime
 from homeassistant import config_entries
@@ -7,6 +7,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
 from .api import EnergaAPI, EnergaAuthError
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD
+
+_LOGGER = logging.getLogger(__name__)
 
 class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -51,7 +53,6 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class EnergaOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry):
-        # Używamy _config_entry, aby uniknąć kolizji z property w nowym HA
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):

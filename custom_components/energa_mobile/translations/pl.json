@@ -3,31 +3,51 @@
         "step": {
             "user": {
                 "title": "Logowanie do Energa Mobile",
-                "description": "Podaj dane logowania. Integracja sama wykryje kody OBIS.",
-                "data": { "username": "Login", "password": "Hasło" }
+                "description": "Podaj dane logowania do Mój Licznik. Integracja sama wykryje kody OBIS.",
+                "data": {
+                    "username": "Login (email)",
+                    "password": "Hasło"
+                }
             },
             "reauth_confirm": {
                 "title": "Wymagana aktualizacja hasła",
                 "description": "Zaloguj się ponownie dla konta {username}.",
-                "data": { "password": "Nowe hasło" }
+                "data": {
+                    "password": "Nowe hasło"
+                }
             }
         },
-        "error": { "cannot_connect": "Błąd połączenia", "invalid_auth": "Błędne hasło" },
-        "abort": { "already_configured": "Konto już skonfigurowane", "reauth_successful": "Hasło zaktualizowane" }
+        "error": {
+            "cannot_connect": "Błąd połączenia z API",
+            "invalid_auth": "Błędne hasło lub login",
+            "unknown": "Nieznany błąd"
+        },
+        "abort": {
+            "already_configured": "To konto jest już skonfigurowane",
+            "reauth_successful": "Hasło zostało zaktualizowane"
+        }
     },
     "options": {
         "step": {
             "init": {
-                "menu_options": { "credentials": "Zmień Hasło", "history": "Pobierz Historię" }
+                "menu_options": {
+                    "credentials": "Zmień Login/Hasło",
+                    "history": "Pobierz Historię Danych"
+                }
             },
             "credentials": {
                 "title": "Zmiana Danych",
-                "data": { "username": "Login", "password": "Nowe hasło" }
+                "data": {
+                    "username": "Login",
+                    "password": "Nowe hasło"
+                }
             },
             "history": {
                 "title": "Pobieranie Historii",
-                "description": "**Data umowy:** {contract_date}\n\nWybierz datę początkową. Integracja pobierze dane godzinowe w tle (może to zająć kilka minut).",
-                "data": { "start_date": "Data początkowa" }
+                "description": "**Data umowy:** {contract_date}\n\nWybierz datę początkową. Integracja pobierze dane godzinowe w tle (może to zająć kilka minut ze względu na limity API).",
+                "data": {
+                    "start_date": "Data początkowa"
+                }
             }
         }
     }

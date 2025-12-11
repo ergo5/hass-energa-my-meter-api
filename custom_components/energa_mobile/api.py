@@ -1,4 +1,4 @@
-"""API Client for Energa Mobile v2.8.5."""
+"""API Client for Energa Mobile v2.8.6."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -61,14 +61,10 @@ class EnergaAPI:
         mp = data["response"]["meterPoints"][0]
         ag = data["response"].get("agreementPoints", [{}])[0]
         
-        # 1. PPE (Punkt Poboru)
-        ppe = ag.get("code") or mp.get("ppe") or "Unknown"
-
-        # 2. Numer Licznika (Urządzenia)
-        # Często 'dev' w meterPoints to właśnie nr licznika. Czasem jest też w 'meterNumber'.
-        serial = mp.get("dev") or mp.get("meterNumber") or mp.get("code") or "Unknown"
+        # Logika PPE i Numeru Licznika
+        ppe_real = ag.get("code") or mp.get("ppe") or mp.get("dev")
+        meter_serial = mp.get("dev") or mp.get("meterNumber") or "Unknown"
         
-        # Data umowy
         c_date = None
         try:
             start_ts = ag.get("dealer", {}).get("start")
@@ -77,8 +73,8 @@ class EnergaAPI:
 
         res = {
             "meter_point_id": mp.get("id"),
-            "ppe": ppe,
-            "meter_serial": serial, # Nowe pole w słowniku
+            "ppe": ppe_real,
+            "meter_serial": meter_serial,
             "tariff": mp.get("tariff"), 
             "address": ag.get("address"), 
             "contract_date": c_date,
