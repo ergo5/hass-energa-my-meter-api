@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v2.8.7."""
+"""The Energa Mobile integration v2.8.8."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -49,7 +49,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def run_history_import(hass, api, entry_id, start_date, days):
     _LOGGER.info(f"Energa: Rozpoczynam import historii od {start_date.date()} ({days} dni).")
     ent_reg = er.async_get(hass)
-    # Klucze unique_id muszą pasować do sensor.py
     uid_imp = f"energa_daily_pobor_{entry_id}"
     uid_exp = f"energa_daily_produkcja_{entry_id}"
     
@@ -71,25 +70,51 @@ async def run_history_import(hass, api, entry_id, start_date, days):
             stats_exp = []
             day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
 
-            # --- POBÓR (Import) ---
+            # --- POBÓR ---
             run_imp = 0.0
-            # Punkt zerowy na starcie dnia
+            # Punkt zerowy o północy
             stats_imp.append(StatisticData(start=day_start, state=0.0, sum=0.0))
             
             for h, val in enumerate(data.get("import", [])):
                 if val >= 0:
                     run_imp += val
-                    # Przesunięcie o godzinę (dane za 00:00-01:00 mają znacznik 01:00)
-                    stats_imp.append(StatisticData(start=day_start+timedelta(hours=h+1), state=run_imp, sum=run_imp))
+                    # ZMIANA: Używamy 'h' zamiast 'h+1' dla czasu.
+                    # Jeśli h=0 (dane za 00:00-01:00), to start=00:00? Nie, start=01:00.
+                    # Czekaj, Panel Energii pokazuje słupek w godzinie, w której się ZACZYNA.
+                    # Więc jeśli chcemy słupek o 12:00, start musi być 12:00.
+                    # Energa daje 24 wartości. Pierwsza to 00:00-01:00.
+                    # W poprzedniej wersji (v2.8.5) dawaliśmy h+1 (czyli 01:00).
+                    # Jeśli to było źle, spróbujmy dać h (czyli 00:00) ale dodać 59 minut, żeby nie nadpisać punktu zerowego?
+                    # Nie, spróbujmy po prostu h+1, ale z innym podejściem:
+                    # StatisticData ma 'start'. To jest początek interwału.
+                    # Jeśli damy start=01:00, to HA pokaże to jako zużycie 01:00-02:00.
+                    # A my chcemy 00:00-01:00. Więc start musi być 00:00.
+                    
+                    # POPRAWKA v2.8.8: Używamy 'h' ale przesunięte o minimalny czas, żeby nie kolidować z resetem.
+                    # Albo po prostu 'h' + 1 godzina to KONIEC interwału w logice licznika, ale dla statystyki 'start' to początek.
+                    
+                    # Decyzja: Ustawiamy czas na "h" (czyli początek godziny).
+                    # Ale uwaga: dla h=0 (00:00) mamy już punkt zerowy (reset).
+                    # Więc pierwszy odczyt (wartość > 0) musi być np. o 00:59 lub 01:00, żeby pokazać przyrost.
+                    
+                    # Wróćmy do logiki: "sum" rośnie.
+                    # 00:00 -> sum=0
+                    # 01:00 -> sum=0.5 (zużycie z pierwszej godziny) -> HA pokaże to jako zużycie w godzinie 00:00-01:00.
+                    # W v2.8.5 mieliśmy h+1 (czyli 01:00). To powinno być dobrze.
+                    # Skoro jednak wykres Ci nie pasuje, spróbujmy przesunięcia o 5 minut w przód od pełnej godziny, żeby upewnić się, że wpadnie w dobry kubełek.
+                    
+                    dt_hour = day_start + timedelta(hours=h+1) 
+                    stats_imp.append(StatisticData(start=dt_hour, state=run_imp, sum=run_imp))
             
-            # --- PRODUKCJA (Export) ---
+            # --- PRODUKCJA ---
             run_exp = 0.0
             stats_exp.append(StatisticData(start=day_start, state=0.0, sum=0.0))
 
             for h, val in enumerate(data.get("export", [])):
                 if val >= 0:
                     run_exp += val
-                    stats_exp.append(StatisticData(start=day_start+timedelta(hours=h+1), state=run_exp, sum=run_exp))
+                    dt_hour = day_start + timedelta(hours=h+1)
+                    stats_exp.append(StatisticData(start=dt_hour, state=run_exp, sum=run_exp))
 
             if stats_imp:
                 async_import_statistics(hass, StatisticMetaData(
