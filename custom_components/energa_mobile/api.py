@@ -1,4 +1,4 @@
-"""API Client for Energa Mobile v2.7.9."""
+"""API Client for Energa Mobile v2.8.3."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -32,7 +32,6 @@ class EnergaAPI:
         except aiohttp.ClientError as err: raise EnergaConnectionError from err
 
     async def async_get_data(self):
-        """Pobiera dane bieżące (sumy dzienne)."""
         if not self._meter_data: self._meter_data = await self._fetch_user_metadata()
         tz = ZoneInfo("Europe/Warsaw")
         ts = int(datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
@@ -47,11 +46,9 @@ class EnergaAPI:
         return data
 
     async def async_get_history_hourly(self, date: datetime):
-        """Pobiera pełne wektory godzinowe dla historycznego dnia."""
         if not self._meter_data: self._meter_data = await self._fetch_user_metadata()
         ts = int(date.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
         result = {"import": [], "export": []}
-        
         if self._meter_data.get("obis_plus"):
             result["import"] = await self._fetch_chart(self._meter_data["meter_point_id"], self._meter_data["obis_plus"], ts)
         if self._meter_data.get("obis_minus"):
@@ -64,6 +61,10 @@ class EnergaAPI:
         mp = data["response"]["meterPoints"][0]
         ag = data["response"].get("agreementPoints", [{}])[0]
         
+        # Logika PPE
+        ppe_real = ag.get("code") or mp.get("ppe") or mp.get("dev")
+        meter_serial = mp.get("dev")
+        
         c_date = None
         try:
             start_ts = ag.get("dealer", {}).get("start")
@@ -71,8 +72,12 @@ class EnergaAPI:
         except: pass
 
         res = {
-            "meter_point_id": mp.get("id"), "ppe": mp.get("dev"), "tariff": mp.get("tariff"), 
-            "address": ag.get("address"), "contract_date": c_date,
+            "meter_point_id": mp.get("id"),
+            "ppe": ppe_real,
+            "meter_serial": meter_serial,
+            "tariff": mp.get("tariff"), 
+            "address": ag.get("address"), 
+            "contract_date": c_date,
             "daily_pobor": 0.0, "daily_produkcja": 0.0, "total_plus": 0.0, "total_minus": 0.0, 
             "obis_plus": None, "obis_minus": None
         }

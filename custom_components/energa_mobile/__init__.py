@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v2.7.9."""
+"""The Energa Mobile integration v2.8.3."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -23,8 +23,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     api = EnergaAPI(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD], session)
 
-    try:
-        await api.async_login()
+    try: await api.async_login()
     except EnergaAuthError as err: raise ConfigEntryAuthFailed(err) from err
     except EnergaConnectionError as err: raise ConfigEntryNotReady(err) from err
 
@@ -32,18 +31,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = api
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Rejestracja usługi
     async def import_history_service(call: ServiceCall):
         start_date_str = call.data["start_date"]
         days = call.data.get("days", 30)
         try:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-            # Uruchamiamy w tle
-            hass.async_create_task(
-                run_history_import(hass, api, entry.entry_id, start_date, days)
-            )
-        except ValueError:
-            _LOGGER.error("Błędny format daty.")
+            hass.async_create_task(run_history_import(hass, api, entry.entry_id, start_date, days))
+        except ValueError: _LOGGER.error("Błędny format daty.")
 
     if not hass.services.has_service(DOMAIN, "fetch_history"):
         hass.services.async_register(DOMAIN, "fetch_history", import_history_service, schema=vol.Schema({
@@ -53,9 +47,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def run_history_import(hass, api, entry_id, start_date, days):
-    """Import historii - Poprawiona obsługa sum i ID."""
     _LOGGER.info(f"Energa: Rozpoczynam import historii od {start_date.date()} ({days} dni).")
-    
     ent_reg = er.async_get(hass)
     uid_imp = f"energa_daily_pobor_{entry_id}"
     uid_exp = f"energa_daily_produkcja_{entry_id}"
@@ -64,61 +56,41 @@ async def run_history_import(hass, api, entry_id, start_date, days):
     entity_id_exp = ent_reg.async_get_entity_id("sensor", DOMAIN, uid_exp)
     
     if not entity_id_imp:
-        _LOGGER.error(f"Nie znaleziono encji poboru: {uid_imp}")
+        _LOGGER.error(f"Nie znaleziono encji: {uid_imp}")
         return
 
     tz = ZoneInfo("Europe/Warsaw")
-
     for i in range(days):
         target_day = start_date + timedelta(days=i)
         if target_day.date() >= datetime.now().date(): break
-
         try:
-            await asyncio.sleep(1.5) # Hamulec anti-ban
-
+            await asyncio.sleep(1.5)
             data = await api.async_get_history_hourly(target_day)
             stats_imp = []
             stats_exp = []
             day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
 
-            # Import (Pobór) - Ustawiamy 'state' ORAZ 'sum'
             run_imp = 0.0
             for h, val in enumerate(data.get("import", [])):
                 if val >= 0:
                     run_imp += val
-                    stats_imp.append(StatisticData(
-                        start=day_start+timedelta(hours=h+1), 
-                        state=run_imp,
-                        sum=run_imp
-                    ))
-
-            # Export (Produkcja)
+                    stats_imp.append(StatisticData(start=day_start+timedelta(hours=h+1), state=run_imp, sum=run_imp))
+            
             run_exp = 0.0
             for h, val in enumerate(data.get("export", [])):
                 if val >= 0:
                     run_exp += val
-                    stats_exp.append(StatisticData(
-                        start=day_start+timedelta(hours=h+1), 
-                        state=run_exp,
-                        sum=run_exp
-                    ))
+                    stats_exp.append(StatisticData(start=day_start+timedelta(hours=h+1), state=run_exp, sum=run_exp))
 
-            # source='recorder'
             if stats_imp:
                 async_import_statistics(hass, StatisticMetaData(
-                    has_mean=False, has_sum=True, name=None, 
-                    source='recorder', statistic_id=entity_id_imp, unit_of_measurement="kWh"
+                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_imp, unit_of_measurement="kWh"
                 ), stats_imp)
-            
             if stats_exp and entity_id_exp:
                 async_import_statistics(hass, StatisticMetaData(
-                    has_mean=False, has_sum=True, name=None, 
-                    source='recorder', statistic_id=entity_id_exp, unit_of_measurement="kWh"
+                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_exp, unit_of_measurement="kWh"
                 ), stats_exp)
-
-        except Exception as e:
-            _LOGGER.error(f"Energa Import Error ({target_day}): {e}")
-    
+        except Exception as e: _LOGGER.error(f"Energa Import Error ({target_day}): {e}")
     _LOGGER.info(f"Energa: Zakończono import historii.")
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -1,21 +1,14 @@
-"""Sensors for Energa Mobile v2.7.9 (Timezone Reset Fix)."""
-from datetime import timedelta, datetime
+"""Sensors for Energa Mobile v2.8.3."""
+from datetime import timedelta
 import logging
 import asyncio
-from zoneinfo import ZoneInfo
-
-from homeassistant.components.sensor import (
-    SensorEntity, SensorDeviceClass, SensorStateClass,
-)
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
-)
+from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.util import dt as dt_util
 from .api import EnergaAuthError, EnergaConnectionError
 from .const import DOMAIN
 
@@ -24,7 +17,8 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     api = hass.data[DOMAIN][entry.entry_id]
     coordinator = EnergaDataCoordinator(hass, api)
-    await coordinator.async_config_entry_first_refresh()
+    try: await coordinator.async_config_entry_first_refresh()
+    except Exception: _LOGGER.warning("Energa: Start bez danych (oczekiwanie na API).")
 
     sensors = [
         ("daily_pobor", "Energa Pobór (Dziś)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"), 
@@ -59,7 +53,6 @@ class EnergaDataCoordinator(DataUpdateCoordinator):
             self._error_count += 1
             retry_delay = 15 if self._error_count > 2 else (5 if self._error_count > 1 else 2)
             self.update_interval = timedelta(minutes=retry_delay)
-            _LOGGER.warning(f"Energa: Błąd API (Próba {self._error_count}). Retry za {retry_delay} min. {err}")
             raise UpdateFailed(f"Błąd komunikacji: {err}") from err
         except EnergaAuthError as err:
             self.update_interval = timedelta(hours=1)
@@ -80,26 +73,23 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self):
         if self.coordinator.data:
-            return self.coordinator.data.get(self._data_key)
-        return None
-
-    @property
-    def last_reset(self):
-        """Wymuszenie resetu o północy dla sensorów dziennych."""
-        if self._attr_state_class == SensorStateClass.TOTAL_INCREASING and "daily" in self._data_key:
-            # Zwracamy północ dzisiejszego dnia w strefie czasowej HA
-            now = dt_util.now()
-            return now.replace(hour=0, minute=0, second=0, microsecond=0)
+            val = self.coordinator.data.get(self._data_key)
+            if val is None and self._attr_device_class == SensorDeviceClass.ENERGY: return 0.0
+            return val
+        if self._attr_device_class == SensorDeviceClass.ENERGY: return 0.0
         return None
 
     @property
     def device_info(self) -> DeviceInfo:
         data = self.coordinator.data or {}
+        meter_id = data.get("meter_point_id", "Unknown")
+        ppe = data.get("ppe", "Unknown")
+        serial = data.get("meter_serial", "")
         return DeviceInfo(
             identifiers={(DOMAIN, self.coordinator.config_entry.entry_id)},
-            name=f"Licznik Energa {data.get('meter_point_id', 'Unknown')}",
+            name=f"Licznik Energa {serial if serial else meter_id}",
             manufacturer="Energa-Operator",
-            model=f"PPE: {data.get('ppe', 'Unknown')}",
+            model=f"PPE: {ppe}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="2.7.9 (Timezone Fix)"
+            sw_version="2.8.3"
         )

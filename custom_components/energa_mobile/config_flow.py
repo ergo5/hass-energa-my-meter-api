@@ -1,4 +1,4 @@
-"""Config flow for Energa Mobile integration v2.7.9."""
+"""Config flow for Energa Mobile integration v2.8.3."""
 import voluptuous as vol
 from datetime import datetime
 from homeassistant import config_entries
@@ -12,7 +12,8 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry): return EnergaOptionsFlow(config_entry)
+    def async_get_options_flow(config_entry):
+        return EnergaOptionsFlow(config_entry)
 
     async def async_step_user(self, user_input=None):
         errors = {}
@@ -50,7 +51,8 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class EnergaOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry):
-        self._config_entry = config_entry # FIX: Używamy _zmienna
+        # Używamy _config_entry, aby uniknąć kolizji z property w nowym HA
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(step_id="init", menu_options=["credentials", "history"])
@@ -67,7 +69,8 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data={})
             except EnergaAuthError: errors["base"] = "invalid_auth"
             except Exception: errors["base"] = "cannot_connect"
-        return self.async_show_form(step_id="credentials", data_schema=vol.Schema({vol.Required(CONF_USERNAME, default=self._config_entry.data.get(CONF_USERNAME)): str, vol.Required(CONF_PASSWORD): str}), errors=errors)
+        current_user = self._config_entry.data.get(CONF_USERNAME)
+        return self.async_show_form(step_id="credentials", data_schema=vol.Schema({vol.Required(CONF_USERNAME, default=current_user): str, vol.Required(CONF_PASSWORD): str}), errors=errors)
 
     async def async_step_history(self, user_input=None):
         from .__init__ import run_history_import
