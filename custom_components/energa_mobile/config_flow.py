@@ -1,4 +1,4 @@
-"""Config flow for Energa Mobile integration v2.9.2."""
+"""Config flow for Energa Mobile integration v2.9.5."""
 import logging
 import voluptuous as vol
 from datetime import datetime
@@ -81,7 +81,6 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
 
         contract_str = "Nieznana"
         default_date = None
-        # Bierzemy pierwszy licznik jako referencję daty umowy
         first_meter = api._meters_data[0] if api._meters_data else {}
         if first_meter.get("contract_date"):
             contract_str = str(first_meter["contract_date"])
@@ -91,7 +90,6 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             start_date = datetime.strptime(user_input["start_date"], "%Y-%m-%d")
             diff = (datetime.now() - start_date).days
             if diff < 1: diff = 1
-            # Import dla wszystkich liczników
             meters = await api.async_get_data()
             for meter in meters:
                 self.hass.async_create_task(run_history_import(self.hass, api, meter["meter_point_id"], start_date, diff))

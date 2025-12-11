@@ -1,7 +1,6 @@
-"""Sensors for Energa Mobile v2.9.2 (Pretty Names)."""
+"""Sensors for Energa Mobile v2.9.5 (Pro Energy Panel Names)."""
 from datetime import timedelta
 import logging
-import asyncio
 from homeassistant.components.sensor import (
     SensorEntity, SensorDeviceClass, SensorStateClass,
 )
@@ -21,8 +20,11 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     api = hass.data[DOMAIN][entry.entry_id]
     coordinator = EnergaDataCoordinator(hass, api)
-    try: await coordinator.async_config_entry_first_refresh()
-    except Exception: _LOGGER.warning("Energa: Start bez pełnych danych.")
+    
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception:
+        _LOGGER.warning("Energa: Start bez pełnych danych.")
 
     entities = []
     meters_data = coordinator.data or []
@@ -30,17 +32,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     for meter in meters_data:
         meter_id = meter["meter_point_id"]
-        # Nowe, skrócone nazwy sensorów
+        
         sensors_config = [
-            ("daily_pobor", "Pobór", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"), 
-            ("daily_produkcja", "Produkcja", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power-variant"),
-            ("total_plus", "Stan Licznika - Pobór", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-export"),
-            ("total_minus", "Stan Licznika - Produkcja", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-import"),
+            # Standardowe sensory (pomocnicze)
+            ("daily_pobor", "Pobór (Dziś)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"), 
+            ("daily_produkcja", "Produkcja (Dziś)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power-variant"),
             ("tariff", "Taryfa", None, None, None, "mdi:file-document-outline"),
             ("ppe", "Numer PPE", None, None, None, "mdi:barcode"),
             ("meter_serial", "Numer Licznika", None, None, None, "mdi:counter"),
             ("address", "Adres", None, None, None, "mdi:map-marker"),
             ("contract_date", "Data Umowy", None, SensorDeviceClass.DATE, None, "mdi:calendar-check"),
+            
+            # --- SENSORY DLA PANELU ENERGII ---
+            # ID: consumption_energy_panel -> "Panel Energii - Pobór"
+            ("consumption_energy_panel", "Panel Energii - Pobór", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-export"),
+            # ID: production_energy_panel -> "Panel Energii - Produkcja"
+            ("production_energy_panel", "Panel Energii - Produkcja", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-import"),
         ]
 
         for key, name, unit, dev_class, state_class, icon in sensors_config:
@@ -82,14 +89,22 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
         self._attr_device_class = dev_class
         self._attr_state_class = state_class
         self._attr_icon = icon
-        if unit != UnitOfEnergy.KILO_WATT_HOUR: self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        if unit != UnitOfEnergy.KILO_WATT_HOUR: 
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self):
         if self.coordinator.data:
             meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), None)
             if meter_data:
-                val = meter_data.get(self._data_key)
+                # Mapowanie dla sensorów panelowych (aby Live pokazywały stan licznika)
+                key_to_fetch = self._data_key
+                if self._data_key == "consumption_energy_panel":
+                    key_to_fetch = "total_plus"
+                elif self._data_key == "production_energy_panel":
+                    key_to_fetch = "total_minus"
+
+                val = meter_data.get(key_to_fetch)
                 if val is None and self._attr_device_class == SensorDeviceClass.ENERGY: return 0.0
                 return val
         if self._attr_device_class == SensorDeviceClass.ENERGY: return 0.0
@@ -97,18 +112,14 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        meter_data = {}
-        if self.coordinator.data:
-             meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), {})
-
+        meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), {}) if self.coordinator.data else {}
         ppe = meter_data.get("ppe", "Unknown")
         serial = meter_data.get("meter_serial", str(self._meter_id))
-        
         return DeviceInfo(
             identifiers={(DOMAIN, str(self._meter_id))},
             name=f"Licznik Energa {serial}",
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="2.9.2"
+            sw_version="2.9.5"
         )
