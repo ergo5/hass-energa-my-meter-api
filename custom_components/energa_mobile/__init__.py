@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v2.9.5."""
+"""The Energa Mobile integration v2.9.7."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -63,8 +63,6 @@ async def run_history_import(hass, api, meter_id, start_date, days):
         return
 
     tz = ZoneInfo("Europe/Warsaw")
-    global_sum_imp = 0.0
-    global_sum_exp = 0.0
 
     for i in range(days):
         target_day = start_date + timedelta(days=i)
@@ -77,17 +75,26 @@ async def run_history_import(hass, api, meter_id, start_date, days):
             stats_exp = []
             day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
 
+            # --- POBÓR (Resetowalny) ---
+            run_imp = 0.0
+            # Punkt ZERO o 00:00:00 (Reset dla HA)
+            stats_imp.append(StatisticData(start=day_start, state=0.0, sum=0.0))
+            
             for h, val in enumerate(data.get("import", [])):
                 if val >= 0:
-                    global_sum_imp += val
-                    dt_hour = day_start + timedelta(hours=h+1)
-                    stats_imp.append(StatisticData(start=dt_hour, state=None, sum=global_sum_imp))
+                    run_imp += val
+                    # Czas: 59:59 (koniec godziny, bezpieczny odstęp od resetu)
+                    dt_hour = day_start + timedelta(hours=h, minutes=59, seconds=59)
+                    stats_imp.append(StatisticData(start=dt_hour, state=run_imp, sum=run_imp))
             
+            # --- PRODUKCJA (Resetowalna) ---
+            run_exp = 0.0
+            stats_exp.append(StatisticData(start=day_start, state=0.0, sum=0.0))
             for h, val in enumerate(data.get("export", [])):
                 if val >= 0:
-                    global_sum_exp += val
-                    dt_hour = day_start + timedelta(hours=h+1)
-                    stats_exp.append(StatisticData(start=dt_hour, state=None, sum=global_sum_exp))
+                    run_exp += val
+                    dt_hour = day_start + timedelta(hours=h, minutes=59, seconds=59)
+                    stats_exp.append(StatisticData(start=dt_hour, state=run_exp, sum=run_exp))
 
             if stats_imp:
                 async_import_statistics(hass, StatisticMetaData(

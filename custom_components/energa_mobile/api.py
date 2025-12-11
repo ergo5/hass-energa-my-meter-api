@@ -1,4 +1,4 @@
-"""API Client for Energa Mobile v2.9.5."""
+"""API Client for Energa Mobile v2.9.7."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -76,14 +76,15 @@ class EnergaAPI:
                 start_ts = ag.get("dealer", {}).get("start")
                 if start_ts: c_date = datetime.fromtimestamp(int(start_ts) / 1000).date()
             except: pass
+            
+            # Wirtualny obiekt licznika
             meter_obj = {
                 "meter_point_id": mp.get("id"), "ppe": ppe, "meter_serial": serial, "tariff": mp.get("tariff"), 
                 "address": ag.get("address"), "contract_date": c_date, "daily_pobor": 0.0, "daily_produkcja": 0.0, 
-                "total_plus": 0.0, "total_minus": 0.0, "obis_plus": None, "obis_minus": None
+                "total_plus": None, "total_minus": None, "obis_plus": None, "obis_minus": None
             }
-            for m in mp.get("lastMeasurements", []):
-                if "A+" in m.get("zone", ""): meter_obj["total_plus"] = float(m.get("value", 0))
-                if "A-" in m.get("zone", ""): meter_obj["total_minus"] = float(m.get("value", 0))
+            
+            # Wyciągamy OBIS, ale ignorujemy lastMeasurements dla totali, bo są mylące (0.3 vs 15000)
             for obj in mp.get("meterObjects", []):
                 if obj.get("obis", "").startswith("1-0:1.8.0"): meter_obj["obis_plus"] = obj.get("obis")
                 elif obj.get("obis", "").startswith("1-0:2.8.0"): meter_obj["obis_minus"] = obj.get("obis")

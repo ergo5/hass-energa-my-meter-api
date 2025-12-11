@@ -1,6 +1,6 @@
 {
   "domain": "energa_mobile",
-  "name": "Energa Mobile (Energy Dashboard Pro)",
+  "name": "Energa Mobile (Dashboard Fix)",
   "codeowners": ["@ergo5"],
   "config_flow": true,
   "documentation": "https://github.com/ergo5/hass-energa-my-meter-api",
@@ -8,5 +8,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/ergo5/hass-energa-my-meter-api/issues",
   "requirements": [],
-  "version": "2.9.5"
+  "version": "2.9.7"
 }

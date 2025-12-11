@@ -1,4 +1,4 @@
-"""Config flow for Energa Mobile integration v2.9.5."""
+"""Config flow for Energa Mobile integration v2.9.7."""
 import logging
 import voluptuous as vol
 from datetime import datetime
