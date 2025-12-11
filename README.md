@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="images/logo.png" alt="Energa Mobile API Logo" width="300"/>
+  <img src="/logo.png" alt="Energa Mobile API Logo" width="300"/>
 </div>
 
 # Energa Mobile API (OBIS Auto-Detect) for Home Assistant
@@ -93,12 +93,6 @@ You can download historical data (e.g., from the beginning of your contract) to 
 ---
 
 ## 🐛 Troubleshooting
-
-**"Invalid Source" error in logs:**
-This is fixed in v2.7.6+. The integration now correctly identifies existing sensors in the registry.
-
-**Integration shows "Unavailable":**
-This usually means the Energa API is down or rate-limiting is active. The integration will automatically retry in 2, 5, or 15 minutes. **Do not reload manually**, just wait.
 
 **Debug Logging:**
 If you encounter issues, enable debug logging to see exactly what's happening:
