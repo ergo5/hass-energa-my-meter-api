@@ -1,4 +1,4 @@
-"""Config flow for Energa Mobile integration v2.7.8."""
+"""Config flow for Energa Mobile integration v2.7.9."""
 import voluptuous as vol
 from datetime import datetime
 from homeassistant import config_entries

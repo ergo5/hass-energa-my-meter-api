@@ -1,14 +1,21 @@
-"""Sensors for Energa Mobile v2.7.8."""
-from datetime import timedelta
+"""Sensors for Energa Mobile v2.7.9 (Timezone Reset Fix)."""
+from datetime import timedelta, datetime
 import logging
 import asyncio
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from zoneinfo import ZoneInfo
+
+from homeassistant.components.sensor import (
+    SensorEntity, SensorDeviceClass, SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
+)
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.util import dt as dt_util
 from .api import EnergaAuthError, EnergaConnectionError
 from .const import DOMAIN
 
@@ -77,6 +84,15 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
         return None
 
     @property
+    def last_reset(self):
+        """Wymuszenie resetu o północy dla sensorów dziennych."""
+        if self._attr_state_class == SensorStateClass.TOTAL_INCREASING and "daily" in self._data_key:
+            # Zwracamy północ dzisiejszego dnia w strefie czasowej HA
+            now = dt_util.now()
+            return now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return None
+
+    @property
     def device_info(self) -> DeviceInfo:
         data = self.coordinator.data or {}
         return DeviceInfo(
@@ -85,5 +101,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {data.get('ppe', 'Unknown')}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="2.7.8"
+            sw_version="2.7.9 (Timezone Fix)"
         )
