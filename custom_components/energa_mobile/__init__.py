@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v2.7.6."""
+"""The Energa Mobile integration v2.7.7."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -40,9 +40,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         days = call.data.get("days", 30)
         try:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-            # Uruchamiamy w tle
+            # Uruchamiamy w tle - przekazujemy STRING (entry.entry_id)
             hass.async_create_task(
-                run_history_import(hass, api, entry, start_date, days)
+                run_history_import(hass, api, entry.entry_id, start_date, days)
             )
         except ValueError:
             _LOGGER.error("Błędny format daty.")
@@ -55,22 +55,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     return True
 
-async def run_history_import(hass, api, entry, start_date, days):
-    """Import historii (naprawiony 'Invalid source')."""
+async def run_history_import(hass, api, entry_id, start_date, days):
+    """Import historii - Poprawiona obsługa entry_id (string)."""
     _LOGGER.info(f"Energa: Rozpoczynam import historii od {start_date.date()} ({days} dni).")
     
     # 1. Znajdujemy poprawne Entity ID w rejestrze
     ent_reg = er.async_get(hass)
     
-    # Klucze unique_id muszą pasować do tych w sensor.py: f"energa_{data_key}_{entry_id}"
-    uid_imp = f"energa_daily_pobor_{entry.entry_id}"
-    uid_exp = f"energa_daily_produkcja_{entry.entry_id}"
+    # Teraz entry_id jest już stringiem, więc używamy go bezpośrednio
+    uid_imp = f"energa_daily_pobor_{entry_id}"
+    uid_exp = f"energa_daily_produkcja_{entry_id}"
     
     entity_id_imp = ent_reg.async_get_entity_id("sensor", DOMAIN, uid_imp)
     entity_id_exp = ent_reg.async_get_entity_id("sensor", DOMAIN, uid_exp)
     
     if not entity_id_imp:
-        _LOGGER.error(f"Nie znaleziono encji poboru dla unique_id: {uid_imp}")
+        _LOGGER.error(f"Nie znaleziono encji poboru dla unique_id: {uid_imp}. Sprawdź czy integracja działa.")
         return
         
     _LOGGER.debug(f"Energa: Wykryto encje do importu: {entity_id_imp} / {entity_id_exp}")
@@ -79,10 +79,12 @@ async def run_history_import(hass, api, entry, start_date, days):
 
     for i in range(days):
         target_day = start_date + timedelta(days=i)
-        if target_day.date() >= datetime.now().date(): break
+        # Stop jeśli to dzisiaj lub przyszłość
+        if target_day.date() >= datetime.now().date(): 
+            break
 
         try:
-            await asyncio.sleep(1.5) # Hamulec
+            await asyncio.sleep(1.5) # Hamulec anty-banowy
 
             data = await api.async_get_history_hourly(target_day)
             
@@ -104,7 +106,7 @@ async def run_history_import(hass, api, entry, start_date, days):
                     run_exp += val
                     stats_exp.append(StatisticData(start=day_start+timedelta(hours=h+1), state=run_exp, sum=0.0))
 
-            # WAŻNE: source='recorder' dla istniejących encji
+            # source='recorder'
             if stats_imp:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, 
