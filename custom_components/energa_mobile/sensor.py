@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v2.9.7."""
+"""Sensors for Energa Mobile v3.0.0."""
 from datetime import timedelta
 import logging
 from homeassistant.components.sensor import (
@@ -29,21 +29,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     for meter in meters_data:
         meter_id = meter["meter_point_id"]
+        
         sensors_config = [
-            ("daily_pobor", "Pobór (Dziś)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"), 
-            ("daily_produkcja", "Produkcja (Dziś)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power-variant"),
+            ("daily_pobor", "Pobór", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:home-lightning-bolt"), 
+            ("daily_produkcja", "Produkcja", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power-variant"),
+            ("total_plus", "Stan Licznika - Pobór", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-export"),
+            ("total_minus", "Stan Licznika - Produkcja", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-import"),
             ("tariff", "Taryfa", None, None, None, "mdi:file-document-outline"),
             ("ppe", "Numer PPE", None, None, None, "mdi:barcode"),
             ("meter_serial", "Numer Licznika", None, None, None, "mdi:counter"),
             ("address", "Adres", None, None, None, "mdi:map-marker"),
             ("contract_date", "Data Umowy", None, SensorDeviceClass.DATE, None, "mdi:calendar-check"),
-            
-            # Wirtualne Liczniki Panelowe (mapowane na Daily)
-            ("consumption_energy_panel", "Panel Energii - Pobór", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-export"),
-            ("production_energy_panel", "Panel Energii - Produkcja", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower-import"),
         ]
+
         for key, name, unit, dev_class, state_class, icon in sensors_config:
             entities.append(EnergaSensor(coordinator, meter_id, key, name, unit, dev_class, state_class, icon))
+    
     async_add_entities(entities)
 
 class EnergaDataCoordinator(DataUpdateCoordinator):
@@ -87,14 +88,7 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.data:
             meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), None)
             if meter_data:
-                # Mapujemy sensory panelowe na DAILY (bo API nie daje Total)
-                key_to_fetch = self._data_key
-                if self._data_key == "consumption_energy_panel":
-                    key_to_fetch = "daily_pobor"
-                elif self._data_key == "production_energy_panel":
-                    key_to_fetch = "daily_produkcja"
-
-                val = meter_data.get(key_to_fetch)
+                val = meter_data.get(self._data_key)
                 if val is None and self._attr_device_class == SensorDeviceClass.ENERGY: return 0.0
                 return val
         if self._attr_device_class == SensorDeviceClass.ENERGY: return 0.0
@@ -104,12 +98,13 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
     def device_info(self) -> DeviceInfo:
         meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), {}) if self.coordinator.data else {}
         ppe = meter_data.get("ppe", "Unknown")
-        serial = meter_data.get("meter_serial", str(self._meter_id))
+        serial = meter_data.get("meter_serial", "")
+        if not serial: serial = "Główny"
         return DeviceInfo(
             identifiers={(DOMAIN, str(self._meter_id))},
             name=f"Licznik Energa {serial}",
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="2.9.7"
+            sw_version="3.0.0"
         )

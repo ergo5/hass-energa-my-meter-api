@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v2.9.7."""
+"""The Energa Mobile integration v3.0.0."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -49,17 +49,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def run_history_import(hass, api, meter_id, start_date, days):
-    _LOGGER.info(f"Energa [{meter_id}]: Start importu do PANELU ENERGII od {start_date.date()}.")
+    _LOGGER.info(f"Energa [{meter_id}]: Start importu do encji DZIENNYCH od {start_date.date()}.")
     ent_reg = er.async_get(hass)
     
-    uid_imp = f"energa_consumption_energy_panel_{meter_id}"
-    uid_exp = f"energa_production_energy_panel_{meter_id}"
+    uid_imp = f"energa_daily_pobor_{meter_id}"
+    uid_exp = f"energa_daily_produkcja_{meter_id}"
     
     entity_id_imp = ent_reg.async_get_entity_id("sensor", DOMAIN, uid_imp)
     entity_id_exp = ent_reg.async_get_entity_id("sensor", DOMAIN, uid_exp)
     
     if not entity_id_imp:
-        _LOGGER.warning(f"Nie znaleziono encji panelowych dla licznika {meter_id}.")
+        _LOGGER.warning(f"Nie znaleziono encji dziennych dla licznika {meter_id}.")
         return
 
     tz = ZoneInfo("Europe/Warsaw")
@@ -75,25 +75,23 @@ async def run_history_import(hass, api, meter_id, start_date, days):
             stats_exp = []
             day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
 
-            # --- POBÓR (Resetowalny) ---
             run_imp = 0.0
-            # Punkt ZERO o 00:00:00 (Reset dla HA)
+            # Punkt 0.0 o północy - KLUCZ DO SUKCESU
             stats_imp.append(StatisticData(start=day_start, state=0.0, sum=0.0))
             
             for h, val in enumerate(data.get("import", [])):
                 if val >= 0:
                     run_imp += val
-                    # Czas: 59:59 (koniec godziny, bezpieczny odstęp od resetu)
-                    dt_hour = day_start + timedelta(hours=h, minutes=59, seconds=59)
+                    dt_hour = day_start + timedelta(hours=h+1)
                     stats_imp.append(StatisticData(start=dt_hour, state=run_imp, sum=run_imp))
             
-            # --- PRODUKCJA (Resetowalna) ---
             run_exp = 0.0
             stats_exp.append(StatisticData(start=day_start, state=0.0, sum=0.0))
+            
             for h, val in enumerate(data.get("export", [])):
                 if val >= 0:
                     run_exp += val
-                    dt_hour = day_start + timedelta(hours=h, minutes=59, seconds=59)
+                    dt_hour = day_start + timedelta(hours=h+1)
                     stats_exp.append(StatisticData(start=dt_hour, state=run_exp, sum=run_exp))
 
             if stats_imp:
@@ -105,7 +103,7 @@ async def run_history_import(hass, api, meter_id, start_date, days):
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_exp, unit_of_measurement="kWh"
                 ), stats_exp)
         except Exception as e: _LOGGER.error(f"Energa Import Error: {e}")
-    _LOGGER.info(f"Energa [{meter_id}]: Zakończono import panelowy.")
+    _LOGGER.info(f"Energa [{meter_id}]: Zakończono import dzienny.")
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
