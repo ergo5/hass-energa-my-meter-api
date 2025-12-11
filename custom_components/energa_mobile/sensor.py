@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v2.8.6."""
+"""Sensors for Energa Mobile v2.8.7."""
 from datetime import timedelta, datetime
 import logging
 import asyncio
@@ -92,5 +92,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}", # W polu Model
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="2.8.6"
+            sw_version="2.8.7"
         )
