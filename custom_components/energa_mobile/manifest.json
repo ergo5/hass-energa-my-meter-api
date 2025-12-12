@@ -1,6 +1,6 @@
 {
   "domain": "energa_mobile",
-  "name": "Energa Mobile (Stable v3.0)",
+  "name": "Energa Mobile (Fresh Start v3.5.1)",
   "codeowners": ["@ergo5"],
   "config_flow": true,
   "documentation": "https://github.com/ergo5/hass-energa-my-meter-api",
@@ -8,5 +8,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/ergo5/hass-energa-my-meter-api/issues",
   "requirements": [],
-  "version": "3.0.0"
+  "version": "3.5.4"
 }

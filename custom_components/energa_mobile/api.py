@@ -1,4 +1,4 @@
-"""API Client for Energa Mobile v3.0.0."""
+"""API Client for Energa Mobile v3.5.4."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -33,8 +33,9 @@ class EnergaAPI:
 
     async def async_get_data(self):
         if not self._meters_data: self._meters_data = await self._fetch_all_meters()
-        tz = ZoneInfo("Europe/Warsaw")
-        ts = int(datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        # Używamy helpera do strefy czasowej
+        ts = self._get_timestamp_warsaw(datetime.now())
+        
         updated_meters = []
         for meter in self._meters_data:
             m_data = meter.copy()
@@ -54,13 +55,31 @@ class EnergaAPI:
             await self.async_get_data()
             meter = next((m for m in self._meters_data if m["meter_point_id"] == meter_point_id), None)
             if not meter: return {"import": [], "export": []}
-        ts = int(date.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        
+        # FIX: Wymuszenie poprawnego timestampu dla Warszawy (północ)
+        ts = self._get_timestamp_warsaw(date)
+        
         result = {"import": [], "export": []}
         if meter.get("obis_plus"):
             result["import"] = await self._fetch_chart(meter["meter_point_id"], meter["obis_plus"], ts)
         if meter.get("obis_minus"):
             result["export"] = await self._fetch_chart(meter["meter_point_id"], meter["obis_minus"], ts)
+        
+        # DEBUG LOG: Pokaż co dostaliśmy dla tej daty
+        _LOGGER.debug(f"Historia {date.date()} (ts={ts}): Import={len(result['import'])} pkt, Export={len(result['export'])} pkt")
+        
         return result
+
+    def _get_timestamp_warsaw(self, date_obj: datetime):
+        """Konwertuje datę na timestamp ms w strefie Europe/Warsaw o północy."""
+        tz = ZoneInfo("Europe/Warsaw")
+        # Jeśli data nie ma strefy, przypisz Warsaw. Jeśli ma, skonwertuj na Warsaw.
+        if date_obj.tzinfo is None:
+            dt_aware = date_obj.replace(hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=tz)
+        else:
+            dt_aware = date_obj.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+            
+        return int(dt_aware.timestamp() * 1000)
 
     async def _fetch_all_meters(self):
         data = await self._api_get(DATA_ENDPOINT)
@@ -69,6 +88,7 @@ class EnergaAPI:
         for mp in data["response"].get("meterPoints", []):
             ag = next((a for a in data["response"].get("agreementPoints", []) if a.get("id") == mp.get("id")), {})
             if not ag and data["response"].get("agreementPoints"): ag = data["response"]["agreementPoints"][0]
+            
             ppe = ag.get("code") or mp.get("ppe") or mp.get("dev") or "Unknown"
             serial = mp.get("dev") or mp.get("meterNumber") or "Unknown"
             c_date = None
@@ -82,10 +102,12 @@ class EnergaAPI:
                 "address": ag.get("address"), "contract_date": c_date, "daily_pobor": 0.0, "daily_produkcja": 0.0, 
                 "total_plus": 0.0, "total_minus": 0.0, "obis_plus": None, "obis_minus": None
             }
-            # Dane informacyjne
+            
+            # Pobieranie Total z lastMeasurements
             for m in mp.get("lastMeasurements", []):
                 if "A+" in m.get("zone", ""): meter_obj["total_plus"] = float(m.get("value", 0))
                 if "A-" in m.get("zone", ""): meter_obj["total_minus"] = float(m.get("value", 0))
+            
             for obj in mp.get("meterObjects", []):
                 if obj.get("obis", "").startswith("1-0:1.8.0"): meter_obj["obis_plus"] = obj.get("obis")
                 elif obj.get("obis", "").startswith("1-0:2.8.0"): meter_obj["obis_minus"] = obj.get("obis")

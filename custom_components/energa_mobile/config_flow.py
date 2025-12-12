@@ -1,4 +1,4 @@
-"""Config flow for Energa Mobile integration v3.0.0."""
+"""Config flow for Energa Mobile integration v3.5.4."""
 import logging
 import voluptuous as vol
 from datetime import datetime
@@ -81,7 +81,6 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
 
         contract_str = "Nieznana"
         default_date = None
-        # Bezpieczne pobranie daty umowy z pierwszego licznika
         first_meter = api._meters_data[0] if api._meters_data else {}
         if first_meter.get("contract_date"):
             contract_str = str(first_meter["contract_date"])
@@ -91,15 +90,9 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             start_date = datetime.strptime(user_input["start_date"], "%Y-%m-%d")
             diff = (datetime.now() - start_date).days
             if diff < 1: diff = 1
-            
-            # Pobieramy liczniki i uruchamiamy import dla każdego
-            try:
-                meters = await api.async_get_data()
-                for meter in meters:
-                    self.hass.async_create_task(run_history_import(self.hass, api, meter["meter_point_id"], start_date, diff))
-            except Exception:
-                _LOGGER.error("Błąd podczas uruchamiania importu historii.")
-                
+            meters = await api.async_get_data()
+            for meter in meters:
+                self.hass.async_create_task(run_history_import(self.hass, api, meter["meter_point_id"], start_date, diff))
             return self.async_create_entry(title="", data={})
 
         return self.async_show_form(step_id="history", data_schema=vol.Schema({vol.Required("start_date", default=default_date): selector.DateSelector()}), description_placeholders={"contract_date": contract_str})

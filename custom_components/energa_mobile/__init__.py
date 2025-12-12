@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.0.0."""
+"""The Energa Mobile integration v3.5.4."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -49,61 +49,83 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def run_history_import(hass, api, meter_id, start_date, days):
-    _LOGGER.info(f"Energa [{meter_id}]: Start importu do encji DZIENNYCH od {start_date.date()}.")
+    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.4 (Final Logic Fix).")
     ent_reg = er.async_get(hass)
     
-    uid_imp = f"energa_daily_pobor_{meter_id}"
-    uid_exp = f"energa_daily_produkcja_{meter_id}"
+    # Celujemy w sensory v2 (te czyste)
+    uid_imp = f"energa_import_total_{meter_id}"
+    uid_exp = f"energa_export_total_{meter_id}"
     
     entity_id_imp = ent_reg.async_get_entity_id("sensor", DOMAIN, uid_imp)
     entity_id_exp = ent_reg.async_get_entity_id("sensor", DOMAIN, uid_exp)
     
-    if not entity_id_imp:
-        _LOGGER.warning(f"Nie znaleziono encji dziennych dla licznika {meter_id}.")
-        return
+    if not entity_id_imp: 
+        entity_id_imp = f"sensor.energa_import_total_{meter_id}"
+    if not entity_id_exp: 
+        entity_id_exp = f"sensor.energa_export_total_{meter_id}"
 
     tz = ZoneInfo("Europe/Warsaw")
+
+    current_sum_imp = 0.0
+    current_sum_exp = 0.0
 
     for i in range(days):
         target_day = start_date + timedelta(days=i)
         if target_day.date() >= datetime.now().date(): break
         try:
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(1.0)
             data = await api.async_get_history_hourly(meter_id, target_day)
             
             stats_imp = []
             stats_exp = []
             day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
 
-            run_imp = 0.0
-            # Punkt 0.0 o północy - KLUCZ DO SUKCESU
-            stats_imp.append(StatisticData(start=day_start, state=0.0, sum=0.0))
+            # Start dnia: state = sum (z poprzedniego dnia)
+            stats_imp.append(StatisticData(start=day_start, state=current_sum_imp, sum=current_sum_imp))
+            stats_exp.append(StatisticData(start=day_start, state=current_sum_exp, sum=current_sum_exp))
             
+            # Agregacja godzinowa
             for h, val in enumerate(data.get("import", [])):
                 if val >= 0:
-                    run_imp += val
+                    current_sum_imp += val
                     dt_hour = day_start + timedelta(hours=h+1)
-                    stats_imp.append(StatisticData(start=dt_hour, state=run_imp, sum=run_imp))
-            
-            run_exp = 0.0
-            stats_exp.append(StatisticData(start=day_start, state=0.0, sum=0.0))
+                    stats_imp.append(StatisticData(start=dt_hour, state=current_sum_imp, sum=current_sum_imp))
             
             for h, val in enumerate(data.get("export", [])):
                 if val >= 0:
-                    run_exp += val
+                    current_sum_exp += val
                     dt_hour = day_start + timedelta(hours=h+1)
-                    stats_exp.append(StatisticData(start=dt_hour, state=run_exp, sum=run_exp))
+                    stats_exp.append(StatisticData(start=dt_hour, state=current_sum_exp, sum=current_sum_exp))
 
+            # ZAPIS DO BAZY
             if stats_imp:
                 async_import_statistics(hass, StatisticMetaData(
-                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_imp, unit_of_measurement="kWh"
+                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_imp, 
+                    unit_of_measurement="kWh", unit_class="energy"
                 ), stats_imp)
-            if stats_exp and entity_id_exp:
+                
+                # FIX: Aktualizujemy stan sensora LIVE TYLKO RAZ NA KONIEC DNIA.
+                hass.states.async_set(
+                    entity_id_imp, 
+                    current_sum_imp, 
+                    {"unit_of_measurement": "kWh", "device_class": "energy", "state_class": "total_increasing"}
+                )
+
+            if stats_exp:
                 async_import_statistics(hass, StatisticMetaData(
-                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_exp, unit_of_measurement="kWh"
+                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_exp, 
+                    unit_of_measurement="kWh", unit_class="energy"
                 ), stats_exp)
+
+                # FIX: Aktualizujemy stan sensora LIVE TYLKO RAZ NA KONIEC DNIA.
+                hass.states.async_set(
+                    entity_id_exp, 
+                    current_sum_exp, 
+                    {"unit_of_measurement": "kWh", "device_class": "energy", "state_class": "total_increasing"}
+                )
+                
         except Exception as e: _LOGGER.error(f"Energa Import Error: {e}")
-    _LOGGER.info(f"Energa [{meter_id}]: Zakończono import dzienny.")
+    _LOGGER.info(f"Energa [{meter_id}]: Zakończono import.")
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
