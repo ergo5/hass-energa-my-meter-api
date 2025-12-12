@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.5.4."""
+"""The Energa Mobile integration v3.5.5."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
