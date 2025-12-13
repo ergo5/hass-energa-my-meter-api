@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.5.5."""
+"""The Energa Mobile integration v3.5.12."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -13,7 +13,8 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.components.recorder.statistics import async_import_statistics
 from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
 
-from .api import EnergaAPI, EnergaAuthError, EnergaConnectionError
+# FIX: Dodajemy obsługę błędu wygaśnięcia tokena
+from .api import EnergaAPI, EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,12 +26,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try: await api.async_login()
     except EnergaAuthError as err: raise ConfigEntryAuthFailed(err) from err
+    # FIX: Obsługa błędu wygaśnięcia tokena, by nie powodował ConfigEntryNotReady
+    except EnergaTokenExpiredError as err:
+        _LOGGER.warning("Token wygasł podczas startu. Próbuję ponownego logowania.")
+        try:
+            await api.async_login()
+        except EnergaAuthError as err: raise ConfigEntryAuthFailed(err) from err
+        except EnergaConnectionError as err: raise ConfigEntryNotReady(err) from err
+    
     except EnergaConnectionError as err: raise ConfigEntryNotReady(err) from err
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = api
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # ... reszta kodu async_setup_entry (serwis importu historii) (bez zmian) ...
     async def import_history_service(call: ServiceCall):
         start_date_str = call.data["start_date"]
         days = call.data.get("days", 30)
@@ -48,11 +58,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         }))
     return True
 
+# ... reszta run_history_import i async_unload_entry (bez zmian) ...
 async def run_history_import(hass, api, meter_id, start_date, days):
-    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.4 (Final Logic Fix).")
+    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.12.")
     ent_reg = er.async_get(hass)
     
-    # Celujemy w sensory v2 (te czyste)
+    # Targetowanie czystych sensorów total
     uid_imp = f"energa_import_total_{meter_id}"
     uid_exp = f"energa_export_total_{meter_id}"
     
@@ -80,11 +91,9 @@ async def run_history_import(hass, api, meter_id, start_date, days):
             stats_exp = []
             day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
 
-            # Start dnia: state = sum (z poprzedniego dnia)
             stats_imp.append(StatisticData(start=day_start, state=current_sum_imp, sum=current_sum_imp))
             stats_exp.append(StatisticData(start=day_start, state=current_sum_exp, sum=current_sum_exp))
             
-            # Agregacja godzinowa
             for h, val in enumerate(data.get("import", [])):
                 if val >= 0:
                     current_sum_imp += val
@@ -97,14 +106,12 @@ async def run_history_import(hass, api, meter_id, start_date, days):
                     dt_hour = day_start + timedelta(hours=h+1)
                     stats_exp.append(StatisticData(start=dt_hour, state=current_sum_exp, sum=current_sum_exp))
 
-            # ZAPIS DO BAZY
             if stats_imp:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_imp, 
                     unit_of_measurement="kWh", unit_class="energy"
                 ), stats_imp)
                 
-                # FIX: Aktualizujemy stan sensora LIVE TYLKO RAZ NA KONIEC DNIA.
                 hass.states.async_set(
                     entity_id_imp, 
                     current_sum_imp, 
@@ -117,7 +124,6 @@ async def run_history_import(hass, api, meter_id, start_date, days):
                     unit_of_measurement="kWh", unit_class="energy"
                 ), stats_exp)
 
-                # FIX: Aktualizujemy stan sensora LIVE TYLKO RAZ NA KONIEC DNIA.
                 hass.states.async_set(
                     entity_id_exp, 
                     current_sum_exp, 
