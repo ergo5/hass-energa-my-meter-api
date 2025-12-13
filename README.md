@@ -2,7 +2,10 @@
   <img src="/logo.png" alt="Energa Mobile API Logo" width="300"/>
 </div>
 
-<h1 align="center">Energa Mobile Integration (v3.5.4) for Home Assistant</h1>
+
+
+
+<h1 align="center">Energa Mobile Integration for Home Assistant</h1>
 
 <p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Badge"></a>
@@ -14,6 +17,49 @@
 </p>
 
 ---
+
+<h3 style="color:red; border-left: 5px solid red; padding-left: 10px;">🚨 Critical Configuration Change (v3.5.5)</h3>
+
+<p>
+Due to persistent issues with Home Assistant's database caching—which corrupted the metadata of older sensors—the <strong>Energy Dashboard configuration MUST be updated</strong> to use the new, clean entity IDs. Failing to switch to these new sensors will result in no historical or live data appearing in the Energy Dashboard.
+</p>
+
+<h4 style="color:#007bff;">⚠️ Action Required: Update Energy Dashboard Sources</h4>
+
+<p>
+You must manually switch the source sensors in your Energy Dashboard configuration to the new ones created by the <code>v3.5.5</code> integration:
+</p>
+
+<ol>
+    <li>Go to <strong>Settings</strong> &rarr; <strong>Dashboards</strong> &rarr; <strong>Energy</strong>.</li>
+    <li>
+        <strong>Remove Old Sensors:</strong> Find and delete any sensor starting with <code>sensor.panel_energii_...</code> or <code>sensor.energa_pobor_dzis</code>.
+    </li>
+    <li>
+        <strong>Add New Import Source (Consumption):</strong>
+        <ul>
+            <li>Under <strong>Grid Consumption</strong>, click "Add consumption".</li>
+            <li>Select the new sensor: 
+                <span style="background-color:#fff0f5; padding: 2px 5px; border-radius: 3px; font-family: monospace;">Energa Import (Total)</span> 
+                (Entity ID: <code>sensor.energa_import_total_...</code>)
+            </li>
+        </ul>
+    </li>
+    <li>
+        <strong>Add New Export Source (Return to Grid):</strong>
+        <ul>
+            <li>Under <strong>Return to Grid</strong>, click "Add solar production".</li>
+            <li>Select the new sensor: 
+                <span style="background-color:#fff0f5; padding: 2px 5px; border-radius: 3px; font-family: monospace;">Energa Export (Total)</span> 
+                (Entity ID: <code>sensor.energa_export_total_...</code>)
+            </li>
+        </ul>
+    </li>
+</ol>
+
+<p>
+<strong>Result:</strong> After this step, the Energy Dashboard will start reading data from the clean sensor IDs, allowing both live data and previously imported history to display correctly.
+</p>
 
 <h2 id="key-features">✨ Key Features (v3.5.x)</h2>
 
