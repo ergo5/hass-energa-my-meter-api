@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.5.20."""
+"""The Energa Mobile integration v3.5.21."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -49,6 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
             meters = await api.async_get_data()
             for meter in meters:
+                # CRITICAL FIX v3.5.21: Ensure we pass the Dict, not StringID
                 hass.async_create_task(run_history_import(hass, api, meter, start_date, days))
         except ValueError: _LOGGER.error("Błędny format daty.")
 
@@ -60,142 +61,155 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: dict, start_date: datetime, days: int) -> None:
+    # FALLBACK: If meter_data comes as string (old call cached?), handle it
+    if isinstance(meter_data, str):
+        _LOGGER.warning(f"Energa Import: Received string ID '{meter_data}' instead of dict. Fetching data...")
+        try:
+            ref_data = await api.async_get_data()
+            found = next((m for m in ref_data if str(m["meter_point_id"]) == str(meter_data)), None)
+            if found: meter_data = found
+            else:
+                _LOGGER.error(f"Energa Import: Could not find meter data for ID {meter_data}. Aborting.")
+                return
+        except Exception as e:
+            _LOGGER.error(f"Energa Import: Fatal API Error during fallback: {e}")
+            return
+
     meter_id = meter_data["meter_point_id"]
     serial = meter_data.get("meter_serial", meter_id)
     
-    _LOGGER.info(f"Energa [{serial}]: Start importu v3.5.20 (Today + Diagnostics).")
+    _LOGGER.info(f"Energa [{serial}]: Start importu v3.5.21 (Robust).")
     
     persistent_notification.async_create(
         hass,
-        f"Rozpoczęto pobieranie historii dla licznika {serial} (zakres: {days} dni). To może potrwać kilka minut.",
+        f"Rozpoczęto pobieranie historii dla licznika {serial} (zakres: {days} dni).",
         title="Energa Mobile: Import Historii",
         notification_id=f"energa_import_start_{meter_id}"
     )
 
-    ent_reg = er.async_get(hass)
-    
-    # Target entities:
-    # 1. Total (Lifetime) - Used for strict accounting
-    uid_imp_total = f"energa_import_total_{meter_id}_v2"
-    uid_exp_total = f"energa_export_total_{meter_id}_v2"
-    
-    # 2. Daily (Resetting) - Requested by user
-    uid_imp_daily = f"energa_daily_pobor_{meter_id}"
-    uid_exp_daily = f"energa_daily_produkcja_{meter_id}"
-    
-    # Resolve Entity IDs
-    def get_entity_id(uid, default_guess):
-        eid = ent_reg.async_get_entity_id("sensor", DOMAIN, uid)
-        return eid if eid else default_guess
-    
-    # Fallback names must match what sensor.py creates
-    entity_id_imp = get_entity_id(uid_imp_total, f"sensor.energa_import_total_{meter_id}_v2")
-    entity_id_exp = get_entity_id(uid_exp_total, f"sensor.energa_export_total_{meter_id}_v2")
-    
-    entity_id_imp_daily = get_entity_id(uid_imp_daily, f"sensor.energa_pobor_dzis_{meter_id}")
-    entity_id_exp_daily = get_entity_id(uid_exp_daily, f"sensor.energa_produkcja_dzis_{meter_id}")
-
-    tz = ZoneInfo("Europe/Warsaw")
-    
-    # SMART IMPORT ANCHORS (Lifetime Sums)
-    # Using 'total_plus' from reference data directly as the anchor at "current time"
-    # We will assume this total roughly corresponds to "NOW".
-    anchor_imp = float(meter_data.get("total_plus", 0.0))
-    anchor_exp = float(meter_data.get("total_minus", 0.0))
-    
-    all_imp_data = [] 
-    all_exp_data = []
-
-    for i in range(days):
-        target_day = start_date + timedelta(days=i)
-        # Importujemy DZIŚ (break only if future date)
-        if target_day.date() > datetime.now().date(): break
+    try:
+        ent_reg = er.async_get(hass)
         
-        try:
-            await asyncio.sleep(0.5)
-            data = await api.async_get_history_hourly(meter_id, target_day)
-            
-            day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
-            
-            daily_run_imp = 0.0
-            daily_run_exp = 0.0
-            
-            for h, val in enumerate(data.get("import", [])):
-                if val >= 0:
-                    dt_hour = day_start + timedelta(hours=h+1)
-                    # Don't import future hours
-                    if dt_hour <= datetime.now(tz):
-                        daily_run_imp += val
-                        all_imp_data.append({
-                            "dt": dt_hour, "val": val, "daily_state": daily_run_imp
-                        })
-            
-            for h, val in enumerate(data.get("export", [])):
-                if val >= 0:
-                    dt_hour = day_start + timedelta(hours=h+1)
-                    if dt_hour <= datetime.now(tz):
-                        daily_run_exp += val
-                        all_exp_data.append({
-                            "dt": dt_hour, "val": val, "daily_state": daily_run_exp
-                        })
-                        
-        except Exception as e: 
-            _LOGGER.error(f"Energa Import Fetch Error ({target_day}): {e}")
-
-    # Helper to process and insert stats
-    def process_and_import(data_list, anchor_sum, eid_total, eid_daily):
-        if not data_list: return 0
+        # Target entities:
+        # 1. Total (Lifetime)
+        uid_imp_total = f"energa_import_total_{meter_id}_v2"
+        uid_exp_total = f"energa_export_total_{meter_id}_v2"
         
-        # Sort newest first for reverse sum calculation
-        data_list.sort(key=lambda x: x["dt"], reverse=True)
-        running_sum = anchor_sum
+        # 2. Daily (Resetting)
+        uid_imp_daily = f"energa_daily_pobor_{meter_id}"
+        uid_exp_daily = f"energa_daily_produkcja_{meter_id}"
         
-        stats_total = []
-        stats_daily = []
+        def get_entity_id(uid, default_guess):
+            eid = ent_reg.async_get_entity_id("sensor", DOMAIN, uid)
+            return eid if eid else default_guess
         
-        for item in data_list:
-            dt = item["dt"]
-            val = item["val"]
-            d_state = item["daily_state"]
-            
-            # TOTAL Sensor: state = lifetime sum, sum = lifetime sum
-            # For TOTAL_INCREASING, state is usually the cumulative value.
-            stats_total.append(StatisticData(start=dt, state=running_sum, sum=running_sum))
-            
-            # DAILY Sensor: state = daily accum (sawtooth), sum = lifetime sum (continuous)
-            stats_daily.append(StatisticData(start=dt, state=d_state, sum=running_sum))
-            
-            running_sum -= val
-            
-        stats_total.sort(key=lambda x: x["start"])
-        stats_daily.sort(key=lambda x: x["start"])
+        entity_id_imp = get_entity_id(uid_imp_total, f"sensor.energa_import_total_{meter_id}_v2")
+        entity_id_exp = get_entity_id(uid_exp_total, f"sensor.energa_export_total_{meter_id}_v2")
         
-        if eid_total:
-            async_import_statistics(hass, StatisticMetaData(
-                has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_total, 
-                unit_of_measurement="kWh", unit_class="energy"
-            ), stats_total)
+        entity_id_imp_daily = get_entity_id(uid_imp_daily, f"sensor.energa_pobor_dzis_{meter_id}")
+        entity_id_exp_daily = get_entity_id(uid_exp_daily, f"sensor.energa_produkcja_dzis_{meter_id}")
+
+        tz = ZoneInfo("Europe/Warsaw")
+        
+        anchor_imp = float(meter_data.get("total_plus", 0.0))
+        anchor_exp = float(meter_data.get("total_minus", 0.0))
+        
+        all_imp_data = [] 
+        all_exp_data = []
+
+        for i in range(days):
+            target_day = start_date + timedelta(days=i)
+            if target_day.date() > datetime.now().date(): break
             
-        if eid_daily:
-             async_import_statistics(hass, StatisticMetaData(
-                has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_daily, 
-                unit_of_measurement="kWh", unit_class="energy"
-            ), stats_daily)
+            try:
+                await asyncio.sleep(0.5)
+                data = await api.async_get_history_hourly(meter_id, target_day)
+                
+                day_start = datetime(target_day.year, target_day.month, target_day.day, 0, 0, 0, tzinfo=tz)
+                
+                daily_run_imp = 0.0
+                daily_run_exp = 0.0
+                
+                for h, val in enumerate(data.get("import", [])):
+                    if val >= 0:
+                        dt_hour = day_start + timedelta(hours=h+1)
+                        if dt_hour <= datetime.now(tz):
+                            daily_run_imp += val
+                            all_imp_data.append({
+                                "dt": dt_hour, "val": val, "daily_state": daily_run_imp
+                            })
+                
+                for h, val in enumerate(data.get("export", [])):
+                    if val >= 0:
+                        dt_hour = day_start + timedelta(hours=h+1)
+                        if dt_hour <= datetime.now(tz):
+                            daily_run_exp += val
+                            all_exp_data.append({
+                                "dt": dt_hour, "val": val, "daily_state": daily_run_exp
+                            })
+                            
+            except Exception as e: 
+                _LOGGER.error(f"Energa Import Fetch Error ({target_day}): {e}")
+
+        def process_and_import(data_list, anchor_sum, eid_total, eid_daily):
+            if not data_list: return 0
             
-        return len(data_list)
+            data_list.sort(key=lambda x: x["dt"], reverse=True)
+            running_sum = anchor_sum
+            
+            stats_total = []
+            stats_daily = []
+            
+            for item in data_list:
+                dt = item["dt"]
+                val = item["val"]
+                d_state = item["daily_state"]
+                
+                # Total: State=Sum
+                stats_total.append(StatisticData(start=dt, state=running_sum, sum=running_sum))
+                
+                # Daily: State=DailyAcc, Sum=LifetimeSum
+                stats_daily.append(StatisticData(start=dt, state=d_state, sum=running_sum))
+                
+                running_sum -= val
+                
+            stats_total.sort(key=lambda x: x["start"])
+            stats_daily.sort(key=lambda x: x["start"])
+            
+            if eid_total:
+                async_import_statistics(hass, StatisticMetaData(
+                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_total, 
+                    unit_of_measurement="kWh", unit_class="energy"
+                ), stats_total)
+                
+            if eid_daily:
+                async_import_statistics(hass, StatisticMetaData(
+                    has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_daily, 
+                    unit_of_measurement="kWh", unit_class="energy"
+                ), stats_daily)
+                
+            return len(data_list)
 
-    cnt_imp = process_and_import(all_imp_data, anchor_imp, entity_id_imp, entity_id_imp_daily)
-    cnt_exp = process_and_import(all_exp_data, anchor_exp, entity_id_exp, entity_id_exp_daily)
+        cnt_imp = process_and_import(all_imp_data, anchor_imp, entity_id_imp, entity_id_imp_daily)
+        cnt_exp = process_and_import(all_exp_data, anchor_exp, entity_id_exp, entity_id_exp_daily)
 
-    success_count = cnt_imp + cnt_exp
-    _LOGGER.info(f"Energa [{serial}]: Zakończono import v3.5.20. Pkt: {success_count}")
+        success_count = cnt_imp + cnt_exp
+        _LOGGER.info(f"Energa [{serial}]: Zakończono import v3.5.21. Pkt: {success_count}")
 
-    persistent_notification.async_create(
-        hass,
-        f"Zakończono pobieranie historii dla licznika {serial}. Przetworzono punktów: {success_count}. Pobrano do sensorów dziennych i całkowitych.",
-        title="Energa Mobile: Sukces",
-        notification_id=f"energa_import_done_{meter_id}"
-    )
+        persistent_notification.async_create(
+            hass,
+            f"Zakończono pobieranie historii dla licznika {serial}. Przetworzono punktów: {success_count}.",
+            title="Energa Mobile: Sukces",
+            notification_id=f"energa_import_done_{meter_id}"
+        )
+    except Exception as e:
+        _LOGGER.error(f"Energa Import CRASH: {e}", exc_info=True)
+        persistent_notification.async_create(
+            hass,
+            f"Krytyczny błąd importu: {e}. Sprawdź logi.",
+            title="Energa Mobile: Błąd",
+            notification_id=f"energa_import_crash_{meter_id}"
+        )
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):

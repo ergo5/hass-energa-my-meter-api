@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.21] - 2025-12-14
+
+### Fixed 🐛
+- **Crash Protection:** Added robust fallback logic if `run_history_import` receives a string ID instead of a data dictionary (fixes missing notifications issue).
+- **Import Reliability:** Wrapped the entire import process in a top-level `try-except` block to capture and notify about any crashes.
+
 ## [v3.5.20] - 2025-12-14
 
 ### Changed ⚙️
