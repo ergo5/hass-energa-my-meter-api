@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v3.5.12."""
+"""Sensors for Energa Mobile v3.5.13."""
 from datetime import timedelta
 import logging
 from homeassistant.components.sensor import (
@@ -16,7 +16,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 # FIX: Dodajemy obsługę błędu wygaśnięcia tokena
 from .api import EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError 
-from .const import DOMAIN
+from .const import DOMAIN, SENSOR_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,31 +31,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     
     if not meters_data: return
 
+
     for meter in meters_data:
         meter_id = meter["meter_point_id"]
-        
-        # FIX: Dodanie 7. elementu (category) do każdego sensora
-        sensors_config = [
-            # Dodane None dla category
-            ("import_total", "Energa Pobór – Licznik całkowity", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower", None),
-            ("export_total", "Energa Produkcja – Licznik całkowity", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power", None),
-            
-            ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:flash", None),
-            ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power", None),
 
-            ("total_plus", "Stan Licznika - Pobór", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:counter", None),
-            ("total_minus", "Stan Licznika - Produkcja", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:counter", None),
-
-            # Dodane EntityCategory.DIAGNOSTIC
-            ("tariff", "Taryfa", None, None, None, "mdi:information-outline", EntityCategory.DIAGNOSTIC),
-            ("ppe", "PPE", None, None, None, "mdi:barcode", EntityCategory.DIAGNOSTIC),
-            ("meter_serial", "Numer licznika", None, None, None, "mdi:counter", EntityCategory.DIAGNOSTIC),
-            ("address", "Adres", None, None, None, "mdi:map-marker", EntityCategory.DIAGNOSTIC),
-            ("contract_date", "Data umowy", None, SensorDeviceClass.DATE, None, "mdi:calendar-check", EntityCategory.DIAGNOSTIC),
-        ]
-
-        # W TYM MIEJSCU BŁĄD ZNIKNIE:
-        for key, name, unit, dclass, sclass, icon, category in sensors_config:
+        for key, name, unit, dclass, sclass, icon, category in SENSOR_TYPES:
             entities.append(EnergaSensor(coordinator, meter_id, key, name, unit, dclass, sclass, icon, category))
 
     async_add_entities(entities)
@@ -163,5 +143,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.5.12",
+            sw_version="3.5.13",
         )

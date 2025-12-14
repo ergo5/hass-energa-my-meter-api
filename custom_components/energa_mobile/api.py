@@ -1,4 +1,4 @@
-"""API Client for Energa Mobile v3.5.12."""
+"""API Client for Energa Mobile v3.5.13."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -19,7 +19,7 @@ class EnergaAPI:
         self._token = None
         self._meters_data = []
 
-    async def async_login(self):
+    async def async_login(self) -> bool:
         try:
             await self._api_get(SESSION_ENDPOINT)
             params = {"clientOS": "ios", "notifyService": "APNs", "username": self._username, "password": self._password}
@@ -32,7 +32,7 @@ class EnergaAPI:
                 return True
         except aiohttp.ClientError as err: raise EnergaConnectionError from err
 
-    async def async_get_data(self):
+    async def async_get_data(self) -> list[dict]:
         # ... kod bez zmian
         if not self._meters_data: self._meters_data = await self._fetch_all_meters()
         
@@ -107,13 +107,16 @@ class EnergaAPI:
         return meters_found
 
 
-    async def _fetch_chart(self, meter_id, obis, timestamp):
+    async def _fetch_chart(self, meter_id: str, obis: str, timestamp: int) -> list[float]:
         # ... kod bez zmian
         params = {"meterPoint": meter_id, "type": "DAY", "meterObject": obis, "mainChartDate": str(timestamp)}
         if self._token: params["token"] = self._token
-        data = await self._api_get(CHART_ENDPOINT, params=params)
-        try: return [ (p.get("zones", [0])[0] or 0.0) for p in data["response"]["mainChart"] ]
-        except: return []
+        try:
+            data = await self._api_get(CHART_ENDPOINT, params=params)
+            return [ (p.get("zones", [0])[0] or 0.0) for p in data["response"]["mainChart"] ]
+        except Exception as e:
+            _LOGGER.error(f"Error fetching chart for {meter_id}: {e}")
+            return []
 
 
     async def _api_get(self, path, params=None):

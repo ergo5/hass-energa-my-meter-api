@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.5.12."""
+"""The Energa Mobile integration v3.5.13."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -41,7 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # ... reszta kodu async_setup_entry (serwis importu historii) (bez zmian) ...
-    async def import_history_service(call: ServiceCall):
+    async def import_history_service(call: ServiceCall) -> None:
         start_date_str = call.data["start_date"]
         days = call.data.get("days", 30)
         try:
@@ -59,8 +59,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 # ... reszta run_history_import i async_unload_entry (bez zmian) ...
-async def run_history_import(hass, api, meter_id, start_date, days):
-    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.12.")
+async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_id: str, start_date: datetime, days: int) -> None:
+    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.13.")
     ent_reg = er.async_get(hass)
     
     # Targetowanie czystych sensorów total
@@ -112,11 +112,7 @@ async def run_history_import(hass, api, meter_id, start_date, days):
                     unit_of_measurement="kWh", unit_class="energy"
                 ), stats_imp)
                 
-                hass.states.async_set(
-                    entity_id_imp, 
-                    current_sum_imp, 
-                    {"unit_of_measurement": "kWh", "device_class": "energy", "state_class": "total_increasing"}
-                )
+
 
             if stats_exp:
                 async_import_statistics(hass, StatisticMetaData(
@@ -124,11 +120,7 @@ async def run_history_import(hass, api, meter_id, start_date, days):
                     unit_of_measurement="kWh", unit_class="energy"
                 ), stats_exp)
 
-                hass.states.async_set(
-                    entity_id_exp, 
-                    current_sum_exp, 
-                    {"unit_of_measurement": "kWh", "device_class": "energy", "state_class": "total_increasing"}
-                )
+
                 
         except Exception as e: _LOGGER.error(f"Energa Import Error: {e}")
     _LOGGER.info(f"Energa [{meter_id}]: Zakończono import.")

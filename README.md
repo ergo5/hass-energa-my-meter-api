@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Badge"></a>
-  <img src="https://img.shields.io/badge/version-v3.5.4-blue" alt="Version Badge">
+  <img src="https://img.shields.io/badge/version-v3.5.13-blue" alt="Version Badge">
 </p>
 
 <p align="center">
@@ -69,6 +69,7 @@ You must manually switch the source sensors in your Energy Dashboard configurati
     <li><strong>🔄 Restart Proof:</strong> Employs <code>RestoreEntity</code> to maintain the last known energy state across HA restarts, preventing data gaps or false resets.</li>
     <li><strong>⚡ Hourly Granularity:</strong> Consumption is calculated from hourly data charts for precise energy tracking.</li>
     <li><strong>🔍 OBIS Auto-Detect:</strong> Automatically identifies Import (1.8.0) and Export (2.8.0) registers.</li>
+    <li><strong>🛠️ Fix (v3.5.13):</strong> Resolved data spikes during history import. Import now runs silently in the background without disturbing live sensors.</li>
 </ul>
 
 ---
