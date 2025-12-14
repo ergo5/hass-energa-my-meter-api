@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v3.5.18."""
+"""Sensors for Energa Mobile v3.5.19."""
 from datetime import timedelta
 import logging
 from homeassistant.components.sensor import (
@@ -103,9 +103,9 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         self._attr_entity_category = category # FIX: Użycie kategorii
         self._restored_value = None
         self._attr_unique_id = f"energa_{key}_{meter_id}"
-        # FIX v3.5.18: Force new entities for Total sensors to reset statistics
-        if key in ["import_total", "export_total"]:
-             self._attr_unique_id += "_v2"
+        self._attr_unique_id = f"energa_{key}_{meter_id}"
+        # FIX: Removed _v2 suffix to align with history import logic
+
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
@@ -146,5 +146,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.5.18",
+            sw_version="3.5.19",
         )

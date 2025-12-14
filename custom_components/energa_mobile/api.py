@@ -27,13 +27,15 @@ class EnergaAPI:
                 if resp.status != 200: raise EnergaConnectionError(f"Login HTTP {resp.status}")
                 try: data = await resp.json()
                 except: raise EnergaConnectionError("Invalid JSON")
-                if not data.get("success"): raise EnergaAuthError("Invalid credentials")
+                if not data.get("success"): raise EnergaAuthError("Invalid credentials (API success=False)")
+                
+                # Token might be missing in newer API versions; session cookies are sufficient
                 self._token = data.get("token") or (data.get("response") or {}).get("token")
+                _LOGGER.info(f"Login successful. Token received: {bool(self._token)}")
                 return True
         except aiohttp.ClientError as err: raise EnergaConnectionError from err
 
     async def async_get_data(self) -> list[dict]:
-        # ... kod bez zmian
         if not self._meters_data: self._meters_data = await self._fetch_all_meters()
         
         tz = ZoneInfo("Europe/Warsaw")
@@ -53,7 +55,6 @@ class EnergaAPI:
         return updated_meters
 
     async def async_get_history_hourly(self, meter_point_id, date: datetime):
-        # ... kod bez zmian
         meter = next((m for m in self._meters_data if m["meter_point_id"] == meter_point_id), None)
         if not meter:
             await self.async_get_data()
@@ -69,14 +70,14 @@ class EnergaAPI:
         if meter.get("obis_minus"):
             result["export"] = await self._fetch_chart(meter["meter_point_id"], meter["obis_minus"], ts)
         
-        _LOGGER.debug(f"Historia {date.date()} (ts={ts}): Import={len(result['import'])} pkt, Export={len(result['export'])} pkt")
+        _LOGGER.debug(f"History {date.date()} (ts={ts}): Import={len(result['import'])} pts, Export={len(result['export'])} pts")
         
         return result
 
     async def _fetch_all_meters(self):
-        # ... kod bez zmian
         data = await self._api_get(DATA_ENDPOINT)
-        if not data.get("response"): raise EnergaConnectionError("Empty response")
+        if not data.get("response"): raise EnergaConnectionError("Empty response in fetch_all_meters")
+        
         meters_found = []
         for mp in data["response"].get("meterPoints", []):
             ag = next((a for a in data["response"].get("agreementPoints", []) if a.get("id") == mp.get("id")), {})
@@ -106,10 +107,9 @@ class EnergaAPI:
             meters_found.append(meter_obj)
         return meters_found
 
-
     async def _fetch_chart(self, meter_id: str, obis: str, timestamp: int) -> list[float]:
-        # ... kod bez zmian
         params = {"meterPoint": meter_id, "type": "DAY", "meterObject": obis, "mainChartDate": str(timestamp)}
+        # Only add token if it exists, otherwise rely on cookies
         if self._token: params["token"] = self._token
         try:
             data = await self._api_get(CHART_ENDPOINT, params=params)
@@ -118,13 +118,14 @@ class EnergaAPI:
             _LOGGER.error(f"Error fetching chart for {meter_id}: {e}")
             return []
 
-
     async def _api_get(self, path, params=None):
         url = f"{BASE_URL}{path}"
         final_params = params.copy() if params else {}
+        # Only add token if parameters don't effectively have it and we have one
         if self._token and "token" not in final_params: final_params["token"] = self._token
+        
         async with self._session.get(url, headers=HEADERS, params=final_params, ssl=False) as resp:
-            # FIX: Dodana obsługa błędu wygaśnięcia tokena
+            # Handle 401/403 which might indicate session expiry or invalid token
             if resp.status == 401 or resp.status == 403:
                 raise EnergaTokenExpiredError(f"API returned {resp.status} for {url}")
             

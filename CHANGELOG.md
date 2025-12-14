@@ -4,15 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [v3.5.19] - 2025-12-14
 
-### Changed ⚙️
-- **Robust Import:** The Smart Import logic now checks more rigorously if the "Reference Meter Data" is available. If the API fails to provide current readings, the import is **aborted** to prevent data corruption (spikes caused by missing reference).
-- **Friendly Names:** Improved logic to resolving the Meter Serial Number in notifications. It now handles type mismatches (string vs int) better.
-
-## [v3.5.18] - 2025-12-14
-
-### Changed ⚙️
-- **Nuclear Option for Statistics:** Rotated `unique_id` for `import_total` and `export_total` sensors (appended `_v2`). This forces Home Assistant to treat them as **new entities**, effectively wiping all corrupted history and spikes without database editing.
-- **Smart Import Updated:** The import logic now targets these new `_v2` entities.
+### Fixed 🐛
+- **Authentication:** Fixed critical login failure ("No token") by supporting cookie-based authentication.
+- **History Import:** Removed `_v2` suffix from sensors. History backfill now correctly targets the live sensors.
+- **Cleanup:** Simplified sensor logic and removed redundant code.
 
 ## [v3.5.17] - 2025-12-14
 
