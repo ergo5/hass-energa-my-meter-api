@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Badge"></a>
-  <img src="https://img.shields.io/badge/version-v3.5.16-blue" alt="Version Badge">
+  <img src="https://img.shields.io/badge/version-v3.5.17-blue" alt="Version Badge">
 </p>
 
 <p align="center">
@@ -109,3 +109,18 @@
 
 <h3>Disclaimer</h3>
 <p>This is a custom integration and is not affiliated with Energa Operator. Use at your own risk.</p>
+
+---
+
+<h2 id="fixing-spikes">🛠️ Fixing Data Spikes (Cleaning Old Statistics)</h2>
+
+<p>If you are upgrading from an older version and see a massive data spike (e.g., 25,000 kWh in one hour), follow these steps to reset the statistics before running a new import:</p>
+
+<ol>
+    <li>Go to <strong>Developer Tools</strong> -> <strong>Statistics</strong>.</li>
+    <li>Search for <code>Energa Import (Panel Energia)</code>.</li>
+    <li>Click the <strong>Fix Issue</strong> icon (if present) or finding the entity in the list.</li>
+    <li>Click the <strong>trash bin icon</strong> (Clear) next to the entity to remove corrupted statistics.</li>
+    <li>Repeat for <code>Energa Export (Panel Energia)</code>.</li>
+    <li>After clearing, go to the integration configuration and run <strong>Download History</strong> again. The new Smart Import will fill the gap correctly.</li>
+</ol>

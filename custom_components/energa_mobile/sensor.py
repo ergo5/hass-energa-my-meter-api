@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v3.5.16."""
+"""Sensors for Energa Mobile v3.5.17."""
 from datetime import timedelta
 import logging
 from homeassistant.components.sensor import (
@@ -119,9 +119,9 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), None)
             if meter_data:
                 key_to_fetch = self._data_key
-                # Mapowanie Nowych Sensorów na Daily (Live)
-                if self._data_key == "import_total": key_to_fetch = "daily_pobor"
-                elif self._data_key == "export_total": key_to_fetch = "daily_produkcja"
+                # Mapowanie Nowych Sensorów na Total (Live) - FIX v3.5.17 (Smart Import alignment)
+                if self._data_key == "import_total": key_to_fetch = "total_plus"
+                elif self._data_key == "export_total": key_to_fetch = "total_minus"
                 
                 val = meter_data.get(key_to_fetch)
                 if val is not None:
@@ -143,5 +143,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.5.16",
+            sw_version="3.5.17",
         )

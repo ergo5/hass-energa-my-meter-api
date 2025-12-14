@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.17] - 2025-12-14
+
+### New Features 🚀
+- **Smart History Import:** The import logic has been completely rewritten. It now calculates historical statistics backwards from the current meter reading. This eliminates data spikes and ensures seamless continuity between imported history and live data.
+- **Friendly Notifications:** Notifications now display the Meter Serial Number (e.g., "300302") instead of the internal technical ID.
+
+### Fixed 🐛
+- **Data Spikes:** Resolved the issue where history import (starting from 0) clashed with live sensors (starting from ~25k), causing massive spikes in the Energy Dashboard.
+- **Sensor Mapping:** Reverted `Energa Import (Panel Energia)` to track Total Meter Reading (`total_increasing`), which is the correct behavior for Energy Dashboard.
+
+### ⚠️ Important / Ważne
+**Before using the new import:** You must clear old statistics to remove previous data spikes. See **README** for the "Fixing Data Spikes" procedure.
+
 ## [v3.5.16] - 2025-12-14
 
 ### Fixed 🐛
