@@ -1,4 +1,4 @@
-"""API Client for Energa Mobile v3.5.22."""
+"""API Client for Energa Mobile v3.5.23."""
 import logging
 import aiohttp
 from datetime import datetime

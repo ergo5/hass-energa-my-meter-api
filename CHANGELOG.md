@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.23] - 2025-12-14
+
+### Changed ⚙️
+- **Nuclear Option v3:** Rotated unique IDs for main sensors to `_v3`. This forces Home Assistant to create fresh entities, instantly "cleaning" old corrupted history spikes without requiring complex database operations or finding hidden "trash bin" buttons.
+
 ## [v3.5.22] - 2025-12-14
 
 ### Changed ⚙️
