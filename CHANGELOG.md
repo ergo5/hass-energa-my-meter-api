@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.22] - 2025-12-14
+
+### Changed ⚙️
+- **Safe Anchor Validation:** The import logic now strictly validates that the "Anchor" (current total meter reading) is greater than 0. If the API returns 0 or fails to provide a value, the import for that specific metric is **skipped** with a warning notification. This prevents the "25,000 kWh spike" caused by calculating history backwards from zero.
+
 ## [v3.5.21] - 2025-12-14
 
 ### Fixed 🐛
