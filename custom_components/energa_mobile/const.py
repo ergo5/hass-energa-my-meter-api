@@ -24,8 +24,8 @@ from homeassistant.const import UnitOfEnergy, EntityCategory
 
 # Konfiguracja sensorów: (key, name, unit, device_class, state_class, icon, category)
 SENSOR_TYPES = [
-    ("import_total", "Energa Pobór – Licznik całkowity", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower", None),
-    ("export_total", "Energa Produkcja – Licznik całkowity", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power", None),
+    ("import_total", "Energa Import (Panel Energia)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:transmission-tower", EntityCategory.DIAGNOSTIC),
+    ("export_total", "Energa Export (Panel Energia)", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power", EntityCategory.DIAGNOSTIC),
     
     ("daily_pobor", "Energa Pobór Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:flash", None),
     ("daily_produkcja", "Energa Produkcja Dziś", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING, "mdi:solar-power", None),

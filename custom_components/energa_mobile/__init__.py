@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.5.13."""
+"""The Energa Mobile integration v3.5.14."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -60,7 +60,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 # ... reszta run_history_import i async_unload_entry (bez zmian) ...
 async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_id: str, start_date: datetime, days: int) -> None:
-    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.13.")
+    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.14.")
     ent_reg = er.async_get(hass)
     
     # Targetowanie czystych sensorów total

@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Badge"></a>
-  <img src="https://img.shields.io/badge/version-v3.5.13-blue" alt="Version Badge">
+  <img src="https://img.shields.io/badge/version-v3.5.14-blue" alt="Version Badge">
 </p>
 
 <p align="center">
@@ -19,9 +19,8 @@
 <h2 id="key-features">✨ Key Features</h2>
 
 <ul>
-    <li><strong>📊 Energy Dashboard Ready:</strong> Dedicated sensors (<code>import_total</code>, <code>export_total</code>) designed specifically for correct statistics in Home Assistant.</li>
-    <li><strong>🛡️ Database Resilience:</strong> Uses unique entity IDs to prevent history corruption.</li>
-    <li><strong>🔄 Restart Proof:</strong> Maintains last known energy states across Home Assistant restarts.</li>
+    <li><strong>📊 Energy Dashboard Ready:</strong> Dedicated sensors with clear names (`(Panel Energia)`) designed specifically for correct statistics.</li>
+    <li><strong>🛡️ Database Resilience:</strong> Uses unique entity IDs to preventing history corruption.</li>
     <li><strong>⚡ Hourly Granularity:</strong> Calculates consumption from hourly charts for precise tracking.</li>
     <li><strong>🔍 OBIS Auto-Detect:</strong> Automatically identifies Import (1.8.0) and Export (2.8.0) registers.</li>
     <li><strong>📈 History Backfill:</strong> Allows importing historical data (up to 30-60 days) to fill gaps in the Energy Dashboard without creating data spikes.</li>
@@ -55,34 +54,34 @@
 
 ---
 
-<h2 id="energy-dashboard">📊 Energy Dashboard Setup</h2>
+<h2 id="energy-dashboard">📊 Energy Dashboard Setup (Konfiguracja Panelu Energia)</h2>
 
-<p>To see your data in the Energy Dashboard, configure the following sensors:</p>
+<p>To see correctly calculated statistics in the Energy Dashboard, you MUST select the specific sensors labeled with <strong>"(Panel Energia)"</strong>. These are separate from the daily counters.</p>
 
 <table>
     <thead>
         <tr>
             <th>Dashboard Section</th>
-            <th>Select Sensor</th>
-            <th>Entity ID Example</th>
+            <th>Correct Sensor Name</th>
+            <th>Description</th>
         </tr>
     </thead>
     <tbody>
         <tr>
-            <td><strong>Grid Consumption</strong></td>
-            <td>Energa Import (Total)</td>
-            <td><code>sensor.energa_import_total_...</code></td>
+            <td><strong>Grid Consumption</strong> (Pobór z sieci)</td>
+            <td><strong>Energa Import (Panel Energia)</strong></td>
+            <td>Specially configured for HA Statistics. Do not confuse with "Daily".</td>
         </tr>
         <tr>
-            <td><strong>Return to Grid</strong></td>
-            <td>Energa Export (Total)</td>
-            <td><code>sensor.energa_export_total_...</code></td>
+            <td><strong>Return to Grid</strong> (Oddawanie do sieci)</td>
+            <td><strong>Energa Export (Panel Energia)</strong></td>
+            <td>Specially configured for HA Statistics.</td>
         </tr>
     </tbody>
 </table>
 
 > [!TIP]
-> Do NOT use `daily_pobor` or raw meter reading (`total_plus`) for the Energy Dashboard. Use the specific `_total` sensors listed above.
+> Do NOT use `Energa Pobór Dziś` or `Stan Licznika` for the Energy Dashboard. Only use the ones marked **(Panel Energia)**.
 
 ---
 
@@ -104,8 +103,8 @@
 <h2 id="troubleshooting">🐛 Troubleshooting</h2>
 
 <ul>
-    <li><strong>Data Not Appearing?</strong> Ensure you selected the correct `_total` sensors in the Dashboard.</li>
-    <li><strong>Yellow Warnings?</strong> Warnings about <code>mean_type</code> in logs are harmless deprecation notices from Home Assistant.</li>
+    <li><strong>Sensors "Panel Energia" missing?</strong> Check the **Diagnostic** section of your device in Home Assistant (Settings -> Devices -> Energa). They might be grouped there to keep the main view clean.</li>
+    <li><strong>Data Not Appearing?</strong> Ensure you selected the correct `(Panel Energia)` sensors in the Dashboard.</li>
 </ul>
 
 <h3>Disclaimer</h3>

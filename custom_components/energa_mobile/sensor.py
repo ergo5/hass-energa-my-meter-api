@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v3.5.13."""
+"""Sensors for Energa Mobile v3.5.14."""
 from datetime import timedelta
 import logging
 from homeassistant.components.sensor import (
@@ -143,5 +143,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.5.13",
+            sw_version="3.5.14",
         )

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.14] - 2025-12-14
+
+### UX Improvements 🎨
+- **Renamed Sensors:** To prevent confusion, the main Energy Dashboard sensors have been renamed to `Energa Import (Panel Energia)` and `Energa Export (Panel Energia)`. They are also marked as `Diagnostic` to keep the main device view clean, but remain fully selectable in the Energy Dashboard.
+
 ## [v3.5.13] - 2025-12-14
 
 ### Fixed 🐛
