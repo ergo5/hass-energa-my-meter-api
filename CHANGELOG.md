@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.24] - 2025-12-14
+
+### Fixed 🐛
+- **Log Noise:** Resolved invalid `StatisticMetaData` call warnings ("doesn't specify mean_type") by explicitly setting `mean_type` to `None`.
+- **Import Failures:** Enhanced the import service to handle string ID inputs from older configs/calls robustly, preventing silent failures.
+- **Missing History:** Confirmed alignment of `_v3` entity IDs between sensor creation and history import, ensuring the imported data actually lands in the visible dashboard sensors.
+
 ## [v3.5.23] - 2025-12-14
 
 ### Changed ⚙️

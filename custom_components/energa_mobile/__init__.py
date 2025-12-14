@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.5.23."""
+"""The Energa Mobile integration v3.5.24."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -48,9 +48,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
             meters = await api.async_get_data()
+            
             for meter in meters:
-                # CRITICAL FIX v3.5.21: Ensure we pass the Dict, not StringID
-                hass.async_create_task(run_history_import(hass, api, meter, start_date, days))
+                meter_point = meter
+                # FIX v3.5.24: Explicitly handle string IDs if API quirks return them mixed
+                if isinstance(meter, str): 
+                    # Try to find corresponding dict in fresh fetch
+                    ref_data = await api.async_get_data()
+                    meter_point = next((m for m in ref_data if str(m["meter_point_id"]) == str(meter)), None)
+                
+                if meter_point and isinstance(meter_point, dict):
+                    hass.async_create_task(run_history_import(hass, api, meter_point, start_date, days))
+                else:
+                    _LOGGER.error(f"Energa Import: Could not resolve meter data for {meter}. Skipping.")
+                    
         except ValueError: _LOGGER.error("Błędny format daty.")
 
     if not hass.services.has_service(DOMAIN, "fetch_history"):
@@ -61,24 +72,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: dict, start_date: datetime, days: int) -> None:
-    # FALLBACK: If meter_data comes as string (old call cached?), handle it
-    if isinstance(meter_data, str):
-        _LOGGER.warning(f"Energa Import: Received string ID '{meter_data}' instead of dict. Fetching data...")
-        try:
-            ref_data = await api.async_get_data()
-            found = next((m for m in ref_data if str(m["meter_point_id"]) == str(meter_data)), None)
-            if found: meter_data = found
-            else:
-                _LOGGER.error(f"Energa Import: Could not find meter data for ID {meter_data}. Aborting.")
-                return
-        except Exception as e:
-            _LOGGER.error(f"Energa Import: Fatal API Error during fallback: {e}")
-            return
-
     meter_id = meter_data["meter_point_id"]
     serial = meter_data.get("meter_serial", meter_id)
     
-    _LOGGER.info(f"Energa [{serial}]: Start importu v3.5.21 (Robust).")
+    _LOGGER.info(f"Energa [{serial}]: Start importu v3.5.24 (Type-Safe).")
     
     persistent_notification.async_create(
         hass,
@@ -90,21 +87,19 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
     try:
         ent_reg = er.async_get(hass)
         
-        # Target entities:
-        # 1. Total (Lifetime)
-        uid_imp_total = f"energa_import_total_{meter_id}_v2"
-        uid_exp_total = f"energa_export_total_{meter_id}_v2"
+        # Target entities (nuclear v3 IDs)
+        uid_imp_total = f"energa_import_total_{meter_id}_v3"
+        uid_exp_total = f"energa_export_total_{meter_id}_v3"
         
-        # 2. Daily (Resetting)
-        uid_imp_daily = f"energa_daily_pobor_{meter_id}"
+        uid_imp_daily = f"energa_daily_pobor_{meter_id}" # Daily sensors don't need v3 rotation usually, but verifying
         uid_exp_daily = f"energa_daily_produkcja_{meter_id}"
         
         def get_entity_id(uid, default_guess):
             eid = ent_reg.async_get_entity_id("sensor", DOMAIN, uid)
             return eid if eid else default_guess
         
-        entity_id_imp = get_entity_id(uid_imp_total, f"sensor.energa_import_total_{meter_id}_v2")
-        entity_id_exp = get_entity_id(uid_exp_total, f"sensor.energa_export_total_{meter_id}_v2")
+        entity_id_imp = get_entity_id(uid_imp_total, f"sensor.energa_import_total_{meter_id}_v3")
+        entity_id_exp = get_entity_id(uid_exp_total, f"sensor.energa_export_total_{meter_id}_v3")
         
         entity_id_imp_daily = get_entity_id(uid_imp_daily, f"sensor.energa_pobor_dzis_{meter_id}")
         entity_id_exp_daily = get_entity_id(uid_exp_daily, f"sensor.energa_produkcja_dzis_{meter_id}")
@@ -113,6 +108,17 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
         
         anchor_imp = float(meter_data.get("total_plus", 0.0))
         anchor_exp = float(meter_data.get("total_minus", 0.0))
+
+        # Check for zero anchor (v3.5.22 logic preserved)
+        if anchor_imp == 0 and anchor_exp == 0:
+             # Try refresh one last time
+             try:
+                 fresh = await api.async_get_data()
+                 target = next((m for m in fresh if str(m["meter_point_id"]) == str(meter_id)), None)
+                 if target:
+                     anchor_imp = float(target.get("total_plus", 0.0))
+                     anchor_exp = float(target.get("total_minus", 0.0))
+             except: pass
         
         all_imp_data = [] 
         all_exp_data = []
@@ -151,9 +157,15 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
             except Exception as e: 
                 _LOGGER.error(f"Energa Import Fetch Error ({target_day}): {e}")
 
-        def process_and_import(data_list, anchor_sum, eid_total, eid_daily):
+        def process_and_import(data_list, anchor_sum, eid_total, eid_daily, name_suffix):
             if not data_list: return 0
             
+            if anchor_sum <= 0:
+                 msg = f"POMINIĘTO import {name_suffix} dla {serial} - Brak poprawnego punktu odniesienia (Anchor=0)."
+                 _LOGGER.warning(msg)
+                 persistent_notification.async_create(hass, msg, title="Energa: Ochrona Danych", notification_id=f"energa_skip_{meter_id}_{name_suffix}")
+                 return 0
+
             data_list.sort(key=lambda x: x["dt"], reverse=True)
             running_sum = anchor_sum
             
@@ -165,10 +177,7 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
                 val = item["val"]
                 d_state = item["daily_state"]
                 
-                # Total: State=Sum
                 stats_total.append(StatisticData(start=dt, state=running_sum, sum=running_sum))
-                
-                # Daily: State=DailyAcc, Sum=LifetimeSum
                 stats_daily.append(StatisticData(start=dt, state=d_state, sum=running_sum))
                 
                 running_sum -= val
@@ -176,6 +185,7 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
             stats_total.sort(key=lambda x: x["start"])
             stats_daily.sort(key=lambda x: x["start"])
             
+            # FIX v3.5.24: Added mean_type=None to remove deprecation warning
             if eid_total:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_total, 
@@ -190,15 +200,15 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
                 
             return len(data_list)
 
-        cnt_imp = process_and_import(all_imp_data, anchor_imp, entity_id_imp, entity_id_imp_daily)
-        cnt_exp = process_and_import(all_exp_data, anchor_exp, entity_id_exp, entity_id_exp_daily)
+        cnt_imp = process_and_import(all_imp_data, anchor_imp, entity_id_imp, entity_id_imp_daily, "Import")
+        cnt_exp = process_and_import(all_exp_data, anchor_exp, entity_id_exp, entity_id_exp_daily, "Export")
 
         success_count = cnt_imp + cnt_exp
-        _LOGGER.info(f"Energa [{serial}]: Zakończono import v3.5.21. Pkt: {success_count}")
+        _LOGGER.info(f"Energa [{serial}]: Zakończono import v3.5.24. Importowano punktów: {success_count}. Encje: _v3")
 
         persistent_notification.async_create(
             hass,
-            f"Zakończono pobieranie historii dla licznika {serial}. Przetworzono punktów: {success_count}.",
+            f"Zakończono pobieranie historii dla {serial}. Punktów: {success_count}. Reset: v3.",
             title="Energa Mobile: Sukces",
             notification_id=f"energa_import_done_{meter_id}"
         )
