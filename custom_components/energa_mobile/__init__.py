@@ -60,7 +60,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 # ... reszta run_history_import i async_unload_entry (bez zmian) ...
 async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_id: str, start_date: datetime, days: int) -> None:
-    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.14.")
+    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.15.")
+    
+    hass.components.persistent_notification.async_create(
+        f"Rozpoczęto pobieranie historii dla licznika {meter_id} (zakres: {days} dni). To może potrwać kilka minut.",
+        title="Energa Mobile: Import Historii",
+        notification_id=f"energa_import_start_{meter_id}"
+    )
+
     ent_reg = er.async_get(hass)
     
     # Targetowanie czystych sensorów total
@@ -79,6 +86,8 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_id: str,
 
     current_sum_imp = 0.0
     current_sum_exp = 0.0
+    
+    success_count = 0
 
     for i in range(days):
         target_day = start_date + timedelta(days=i)
@@ -106,6 +115,8 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_id: str,
                     dt_hour = day_start + timedelta(hours=h+1)
                     stats_exp.append(StatisticData(start=dt_hour, state=current_sum_exp, sum=current_sum_exp))
 
+            if stats_imp or stats_exp: success_count += 1
+
             if stats_imp:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=entity_id_imp, 
@@ -124,6 +135,12 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_id: str,
                 
         except Exception as e: _LOGGER.error(f"Energa Import Error: {e}")
     _LOGGER.info(f"Energa [{meter_id}]: Zakończono import.")
+
+    hass.components.persistent_notification.async_create(
+        f"Zakończono pobieranie historii dla licznika {meter_id}. Przetworzono dni: {success_count}. Dane pojawią się w Panelu Energii w ciągu godziny.",
+        title="Energa Mobile: Sukces",
+        notification_id=f"energa_import_done_{meter_id}"
+    )
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):

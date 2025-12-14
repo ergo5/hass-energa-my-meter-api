@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.15] - 2025-12-14
+
+### New Features 🚀
+- **History Import Notifications:** Added system notifications (Persistent Notifications) that inform you when the history download starts and finishes, including a count of processed days.
+
 ## [v3.5.14] - 2025-12-14
 
 ### UX Improvements 🎨
