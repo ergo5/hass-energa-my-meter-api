@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.5.24."""
+"""The Energa Mobile integration v3.5.25."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -64,18 +64,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     
         except ValueError: _LOGGER.error("Błędny format daty.")
 
-    if not hass.services.has_service(DOMAIN, "fetch_history"):
-        hass.services.async_register(DOMAIN, "fetch_history", import_history_service, schema=vol.Schema({
-            vol.Required("start_date"): str,
-            vol.Optional("days", default=30): int
-        }))
+        except ValueError: _LOGGER.error("Błędny format daty.")
+
+    # Always register service to ensure latest code is used (v3.5.25)
+    hass.services.async_register(DOMAIN, "fetch_history", import_history_service, schema=vol.Schema({
+        vol.Required("start_date"): str,
+        vol.Optional("days", default=30): int
+    }))
     return True
 
 async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: dict, start_date: datetime, days: int) -> None:
+    # PARANOID FIX v3.5.25: Even with upstream checks, if this function gets a string, FIX IT.
+    if isinstance(meter_data, str):
+        _LOGGER.warning(f"Energa Import: Internal function received STRING '{meter_data}'. Activating fail-safe fetch.")
+        try:
+            ref_data = await api.async_get_data()
+            found = next((m for m in ref_data if str(m["meter_point_id"]) == str(meter_data)), None)
+            if found: meter_data = found
+            else:
+                _LOGGER.error(f"Energa Import: Fail-safe could not resolve ID {meter_data}. Aborting.")
+                return
+        except Exception as e:
+            _LOGGER.error(f"Energa Import: Fail-safe crash: {e}")
+            return
+
     meter_id = meter_data["meter_point_id"]
     serial = meter_data.get("meter_serial", meter_id)
     
-    _LOGGER.info(f"Energa [{serial}]: Start importu v3.5.24 (Type-Safe).")
+    _LOGGER.info(f"Energa [{serial}]: Start importu v3.5.25 (Paranoid).")
     
     persistent_notification.async_create(
         hass,
