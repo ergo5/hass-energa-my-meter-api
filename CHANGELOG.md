@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.20] - 2025-12-14
+
+### Changed ⚙️
+- **Expanded Import Scope:** Support for importing "Today's" data. The import loop now fetches data up to the current moment (as far as API allows), ensuring gaps are filled up to the current live readings.
+- **Diagnostic History:** Import now also populates statistics for `Energa Pobór Dziś` (Import Today) and `Energa Produkcja Dziś` (Export Today). This allows for diagnostic inspection of exactly what hourly data the API is returning in chart format.
+- **Reverted Strict Checks:** Removed the strict abort logic from v3.5.19 that prevented import if reference data was missing. Reverted to robust warnings (Soft Fail) to ensure import proceeds even with partial API data.
+
 ## [v3.5.19] - 2025-12-14
 
 ### Fixed 🐛
