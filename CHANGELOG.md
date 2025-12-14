@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.18] - 2025-12-14
+
+### Changed ⚙️
+- **Nuclear Option for Statistics:** Rotated `unique_id` for `import_total` and `export_total` sensors (appended `_v2`). This forces Home Assistant to treat them as **new entities**, effectively wiping all corrupted history and spikes without database editing.
+- **Smart Import Updated:** The import logic now targets these new `_v2` entities.
+
 ## [v3.5.17] - 2025-12-14
 
 ### New Features 🚀

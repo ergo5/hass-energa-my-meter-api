@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Badge"></a>
-  <img src="https://img.shields.io/badge/version-v3.5.17-blue" alt="Version Badge">
+  <img src="https://img.shields.io/badge/version-v3.5.18-blue" alt="Version Badge">
 </p>
 
 <p align="center">
