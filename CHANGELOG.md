@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.19] - 2025-12-14
+
+### Changed ⚙️
+- **Robust Import:** The Smart Import logic now checks more rigorously if the "Reference Meter Data" is available. If the API fails to provide current readings, the import is **aborted** to prevent data corruption (spikes caused by missing reference).
+- **Friendly Names:** Improved logic to resolving the Meter Serial Number in notifications. It now handles type mismatches (string vs int) better.
+
 ## [v3.5.18] - 2025-12-14
 
 ### Changed ⚙️
