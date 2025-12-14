@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.16] - 2025-12-14
+
+### Fixed 🐛
+- **Notification Crash:** Fixed a critical bug where the new notification system caused the history import to crash immediately.
+
 ## [v3.5.15] - 2025-12-14
 
 ### New Features 🚀

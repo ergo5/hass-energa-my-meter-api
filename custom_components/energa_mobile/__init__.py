@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.5.14."""
+"""The Energa Mobile integration v3.5.16."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -12,6 +12,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.components.recorder.statistics import async_import_statistics
 from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
+from homeassistant.components import persistent_notification
 
 # FIX: Dodajemy obsługę błędu wygaśnięcia tokena
 from .api import EnergaAPI, EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
@@ -60,9 +61,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 # ... reszta run_history_import i async_unload_entry (bez zmian) ...
 async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_id: str, start_date: datetime, days: int) -> None:
-    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.15.")
+    _LOGGER.info(f"Energa [{meter_id}]: Start importu v3.5.16.")
     
-    hass.components.persistent_notification.async_create(
+    persistent_notification.async_create(
+        hass,
         f"Rozpoczęto pobieranie historii dla licznika {meter_id} (zakres: {days} dni). To może potrwać kilka minut.",
         title="Energa Mobile: Import Historii",
         notification_id=f"energa_import_start_{meter_id}"
@@ -136,7 +138,8 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_id: str,
         except Exception as e: _LOGGER.error(f"Energa Import Error: {e}")
     _LOGGER.info(f"Energa [{meter_id}]: Zakończono import.")
 
-    hass.components.persistent_notification.async_create(
+    persistent_notification.async_create(
+        hass,
         f"Zakończono pobieranie historii dla licznika {meter_id}. Przetworzono dni: {success_count}. Dane pojawią się w Panelu Energii w ciągu godziny.",
         title="Energa Mobile: Sukces",
         notification_id=f"energa_import_done_{meter_id}"
