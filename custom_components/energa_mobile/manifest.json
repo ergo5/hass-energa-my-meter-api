@@ -1,6 +1,6 @@
 {
   "domain": "energa_mobile",
-  "name": "Energa API (Stabilna)",
+  "name": "Energa API",
   "codeowners": [
     "@ergo5"
   ],
