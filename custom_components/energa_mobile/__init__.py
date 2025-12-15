@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.5.25."""
+"""The Energa Mobile integration v3.6.0-beta.1."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -78,7 +78,8 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
     if isinstance(meter_data, str):
         _LOGGER.warning(f"Energa Import: Internal function received STRING '{meter_data}'. Activating fail-safe fetch.")
         try:
-            ref_data = await api.async_get_data()
+            # v3.6.0-beta.1: Force Refresh to ensure we don't get stale/zero cache
+            ref_data = await api.async_get_data(force_refresh=True)
             found = next((m for m in ref_data if str(m["meter_point_id"]) == str(meter_data)), None)
             if found: meter_data = found
             else:
@@ -91,7 +92,7 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
     meter_id = meter_data["meter_point_id"]
     serial = meter_data.get("meter_serial", meter_id)
     
-    _LOGGER.info(f"Energa [{serial}]: Start importu v3.5.25 (Paranoid).")
+    _LOGGER.info(f"Energa [{serial}]: Start importu v3.6.0-beta.1 (Fresh-Anchor).")
     
     persistent_notification.async_create(
         hass,
@@ -127,15 +128,18 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
 
         # Check for zero anchor (v3.5.22 logic preserved)
         if anchor_imp == 0 and anchor_exp == 0:
-             # Try refresh one last time
+             # Try refresh one last time (Force Refresh - v3.6.0-beta.1)
              try:
-                 fresh = await api.async_get_data()
+                 fresh = await api.async_get_data(force_refresh=True)
                  target = next((m for m in fresh if str(m["meter_point_id"]) == str(meter_id)), None)
                  if target:
                      anchor_imp = float(target.get("total_plus", 0.0))
                      anchor_exp = float(target.get("total_minus", 0.0))
              except: pass
         
+        # DIAGNOSTIC LOG (v3.6.0-beta.1)
+        _LOGGER.info(f"Energa Import Anchors: IMP={anchor_imp}, EXP={anchor_exp}")
+
         all_imp_data = [] 
         all_exp_data = []
 
@@ -201,17 +205,17 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
             stats_total.sort(key=lambda x: x["start"])
             stats_daily.sort(key=lambda x: x["start"])
             
-            # FIX v3.5.24: Added mean_type=None to remove deprecation warning
+            # FIX v3.6.0-beta.1: Added mean_type=None to remove deprecation warning
             if eid_total:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_total, 
-                    unit_of_measurement="kWh", unit_class="energy"
+                    unit_of_measurement="kWh", unit_class="energy", mean_type=None
                 ), stats_total)
                 
             if eid_daily:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_daily, 
-                    unit_of_measurement="kWh", unit_class="energy"
+                    unit_of_measurement="kWh", unit_class="energy", mean_type=None
                 ), stats_daily)
                 
             return len(data_list)

@@ -1,4 +1,4 @@
-"""API Client for Energa Mobile v3.5.25."""
+"""API Client for Energa Mobile v3.6.0-beta.1."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -35,7 +35,8 @@ class EnergaAPI:
                 return True
         except aiohttp.ClientError as err: raise EnergaConnectionError from err
 
-    async def async_get_data(self) -> list[dict]:
+    async def async_get_data(self, force_refresh: bool = False) -> list[dict]:
+        if force_refresh: self._meters_data = []
         if not self._meters_data: self._meters_data = await self._fetch_all_meters()
         
         tz = ZoneInfo("Europe/Warsaw")

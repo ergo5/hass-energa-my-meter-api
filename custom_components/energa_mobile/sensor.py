@@ -1,4 +1,4 @@
-"""Sensors for Energa Mobile v3.5.25."""
+"""Sensors for Energa Mobile v3.6.0-beta.1."""
 from datetime import timedelta
 import logging
 from homeassistant.components.sensor import (

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.6.0-beta.1] - 2025-12-14
+
+### Fixed 🐛
+- **Graph Drop (Stale Cache):** The import logic now forces a fresh API data fetch (bypassing cache) before calculating history. this resolves issues where the "Anchor" (reference point) was outdated or zero (due to cached Service Calls), causing graph spikes/drops.
+- **Deprecation Warnings:** Correctly added `mean_type=None` to `StatisticMetaData` calls, resolving FutureWarnings for Home Assistant 2026.11.
+
+### Changed ⚙️
+- **Diagnostics:** Added INFO logging of the exact Anchor values (Import/Export) used for calculation, to aid in verifying data integrity.
+
 ## [v3.5.25] - 2025-12-14
 
 ### Fixed 🐛
