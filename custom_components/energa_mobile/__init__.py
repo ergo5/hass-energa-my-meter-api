@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.6.0-beta.2."""
+"""The Energa Mobile integration v3.6.0-beta.3."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -206,16 +206,15 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
             stats_daily.sort(key=lambda x: x["start"])
             
             # FIX v3.6.0-beta.1: Added mean_type=None to remove deprecation warning
-            if eid_total:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_total, 
-                    unit_of_measurement="kWh", unit_class="energy", mean_type=None
+                    unit_of_measurement="kWh", unit_class="energy"
                 ), stats_total)
                 
             if eid_daily:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_daily, 
-                    unit_of_measurement="kWh", unit_class="energy", mean_type=None
+                    unit_of_measurement="kWh", unit_class="energy"
                 ), stats_daily)
                 
             return len(data_list)

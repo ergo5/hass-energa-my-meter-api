@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
 ### Changed ⚙️
 - **Diagnostics:** Added INFO logging of the exact Anchor values (Import/Export) used for calculation, to aid in verifying data integrity.
 
+## v3.6.0-beta.3
+- **CRITICIAL FIX:** Reverted the `mean_type=None` addition causing `sqlite3.IntegrityError` and database crashes during import.
+- **NOTE:** This restores the `DeprecationWarning` in logs but ensures data is successfully written to the database.
+- **Core Logic:** The `force_refresh=True` fix for graph anchor issues is preserved and should now function correctly as the database write will proceed.
+
 ## [v3.6.0-beta.2] - 2025-12-14
 
 ### Fixed 🐛
