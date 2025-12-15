@@ -11,6 +11,17 @@ All notable changes to this project will be documented in this file.
 ### Changed ⚙️
 - **Diagnostics:** Added INFO logging of the exact Anchor values (Import/Export) used for calculation, to aid in verifying data integrity.
 
+## [v3.6.0-beta.2] - 2025-12-14
+
+### Fixed 🐛
+- **Cosmetic:** Updated the hardcoded `sw_version` in `sensor.py` which was stuck on `3.5.23`, causing confusion in the Device Info panel.
+
+## [v3.6.0-beta.1] - 2025-12-14
+
+### Fixed 🐛
+- **Paranoid Failure Protection:** Re-implemented the internal 'fail-safe' mechanism inside `run_history_import`. This guarantees that even if Home Assistant passes a raw string ID (found in logs despite previous fixes), the function will self-correct and fetch the necessary data instead of crashing with a `TypeError`.
+- **Service Registration:** Forced the `fetch_history` service to re-register on every startup, preventing usage of stale code versions.
+
 ## [v3.5.25] - 2025-12-14
 
 ### Fixed 🐛
