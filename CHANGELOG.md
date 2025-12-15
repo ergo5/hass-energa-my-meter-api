@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
 ### Changed ⚙️
 - **Diagnostics:** Added INFO logging of the exact Anchor values (Import/Export) used for calculation, to aid in verifying data integrity.
 
+## v3.6.0-beta.4
+- **HOTFIX:** Fixed `IndentationError` in `__init__.py` introduced in beta.3.
+- **RESTORED:** The `if eid_total:` check was accidentally removed, causing the syntax error. It is now restored.
+- **Functionality:** Identical to beta.3 (DB fix + Force Refresh), but actually runnable.
+
 ## v3.6.0-beta.3
 - **CRITICIAL FIX:** Reverted the `mean_type=None` addition causing `sqlite3.IntegrityError` and database crashes during import.
 - **NOTE:** This restores the `DeprecationWarning` in logs but ensures data is successfully written to the database.
