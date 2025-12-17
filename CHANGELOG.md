@@ -1,5 +1,31 @@
 # Changelog
 
+## [v3.6.0-beta.7] - 2025-12-17
+
+### Changed ⚙️
+- **Faster Updates:** Increased API polling frequency to **30 minutes** (previously 60 min).
+- **Responsive Dashboard:** This ensures that as soon as Energa processes the hourly data, Home Assistant fetches it in the next half-hour window, minimizing the delay between "real world" usage and your Energy Dashboard.
+
+
+
+## [v3.6.0-beta.6] - 2025-12-17
+
+### New Features 🚀
+- **Live Hourly Updates:** Dramatically reduced the "Self-Healing" threshold from 24h to **3h**.
+- **Dashboard Friendly:** The integration now continuously checks for new hourly data throughout the day. As soon as Energa publishes the hourly usage (usually with a few hours delay), it is immediately imported into Home Assistant. This ensures the Energy Dashboard bars appear "today" rather than "tomorrow".
+
+
+
+## [v3.6.0-beta.5] - 2025-12-17
+
+### New Features 🚀
+- **Self-Healing History:** Implemented an automatic "History Health Check" that runs hourly. If the integration detects a data gap (last history entry > 24h old), it automatically triggers a backfill import for the missing days.
+- **Smart Gap & Fill:** Logic inspired by alternative integrations; ensures seamless data continuity.
+
+### Fixed 🐛
+- **Live Data Logic:** Updated the sensor update loop to check for history gaps immediately after fetching fresh data.
+
+
 All notable changes to this project will be documented in this file.
 
 ## [v3.6.0-beta.1] - 2025-12-14

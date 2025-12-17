@@ -1,4 +1,4 @@
-"""API interface for Energa Mobile v3.6.0-beta.4."""
+"""API interface for Energa Mobile v3.6.0-beta.7."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -51,6 +51,8 @@ class EnergaAPI:
             if m_data.get("obis_minus"):
                 vals = await self._fetch_chart(m_data["meter_point_id"], m_data["obis_minus"], ts)
                 m_data["daily_produkcja"] = sum(vals)
+            
+            _LOGGER.debug(f"Energa Meter [{m_data.get('meter_serial')}]: Total(+)={m_data.get('total_plus')}, Total(-)={m_data.get('total_minus')}, Daily(+)={m_data.get('daily_pobor')}, Daily(-)={m_data.get('daily_produkcja')}")
             updated_meters.append(m_data)
         self._meters_data = updated_meters
         return updated_meters

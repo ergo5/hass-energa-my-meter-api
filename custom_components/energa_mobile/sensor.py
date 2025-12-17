@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.4."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.7."""
 from datetime import timedelta
 import logging
 from homeassistant.components.sensor import (
@@ -48,13 +48,16 @@ class EnergaDataCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name="Energa Mobile API",
-            update_interval=timedelta(hours=1),
+            update_interval=timedelta(minutes=30),
         )
         self.api = api
 
     async def _async_update_data(self):
         try:
-            return await self.api.async_get_data()
+            data = await self.api.async_get_data()
+            # Self-Healing Check (v3.6.0-beta.5)
+            self.hass.async_create_task(self._check_and_fix_history(data))
+            return data
         
         # FIX: Dodana obsługa wygaśnięcia tokena
         except EnergaTokenExpiredError as err:
@@ -75,6 +78,62 @@ class EnergaDataCoordinator(DataUpdateCoordinator):
         
         except Exception as err:
             raise UpdateFailed(f"Nieznany błąd Energa: {err}") from err
+
+    async def _check_and_fix_history(self, meters_data):
+        """Self-healing: wykrywanie dziur w historii i autonaprawa."""
+        if not meters_data: return
+
+        # Import locally to avoid circular dependency
+        from homeassistant.helpers import entity_registry as er
+        from homeassistant.components.recorder import get_instance
+        from homeassistant.components.recorder.statistics import get_last_statistics
+        from homeassistant.util import dt as dt_util
+        from . import run_history_import
+
+        try:
+            ent_reg = er.async_get(self.hass)
+            
+            for meter in meters_data:
+                meter_id = meter["meter_point_id"]
+                # Sprawdzamy główny sensor importu (v3/Total)
+                uid = f"energa_import_total_{meter_id}_v3"
+                entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, uid)
+                
+                if not entity_id: continue
+
+                # Sprawdź kiedy był ostatni wpis w statistykach
+                last_stats = await get_instance(self.hass).async_add_executor_job(
+                    get_last_statistics, self.hass, 1, entity_id, True, {"start"}
+                )
+                
+                start_date = None
+                
+                if not last_stats:
+                    # Brak historii - może nowa instalacja? Pobierz 7 dni wstecz dla bezpieczeństwa.
+                    # Ale tylko jeśli sensor w ogóle istnieje w rejestrze (a istnieje, bo przeszło check wyżej)
+                    _LOGGER.info(f"Self-Healing: Brak statystyk dla {entity_id}. Inicjalizacja historii (7 dni).")
+                    start_date = dt_util.now() - timedelta(days=7)
+                else:
+                    stat = last_stats[entity_id][0]
+                    last_dt = datetime.fromtimestamp(stat["start"], tz=dt_util.UTC)
+                    diff = dt_util.now() - last_dt
+                    
+                    # Jeśli dziura większa niż 3h (Energa ma opóźnienie, ale chcemy być na bieżąco)
+                    if diff > timedelta(hours=3):
+                        _LOGGER.debug(f"Self-Healing: Wykryto opóźnienie danych ({diff}). Sprawdzam aktualizacje.")
+                        start_date = last_dt
+
+                if start_date:
+                     # Pobieramy od wykrytej daty AŻ DO DZISIAJ (żeby zachować ciągłość anchor)
+                     days_to_fetch = (dt_util.now().date() - start_date.date()).days + 2
+                     if days_to_fetch > 0:
+                        # Uruchom import w tle
+                        self.hass.async_create_task(
+                            run_history_import(self.hass, self.api, meter, start_date, days_to_fetch)
+                        )
+
+        except Exception as e:
+            _LOGGER.error(f"Self-Healing Error: {e}")
 
 
 class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
@@ -149,5 +208,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.6.0-beta.4",
+            sw_version="3.6.0-beta.7",
         )
