@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.7."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.8."""
 from datetime import timedelta
 import logging
 from homeassistant.components.sensor import (
@@ -51,6 +51,7 @@ class EnergaDataCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=30),
         )
         self.api = api
+        self._last_repair_attempt = {} # Circuit Breaker state
 
     async def _async_update_data(self):
         try:
@@ -120,14 +121,21 @@ class EnergaDataCoordinator(DataUpdateCoordinator):
                     
                     # Jeśli dziura większa niż 3h (Energa ma opóźnienie, ale chcemy być na bieżąco)
                     if diff > timedelta(hours=3):
-                        _LOGGER.debug(f"Self-Healing: Wykryto opóźnienie danych ({diff}). Sprawdzam aktualizacje.")
-                        start_date = last_dt
+                        # CIRCUIT BREAKER v3.6.0-beta.8
+                        last_try = self._last_repair_attempt.get(meter_id)
+                        if last_try and (dt_util.now() - last_try) < timedelta(hours=4):
+                             _LOGGER.info(f"Self-Healing: Wstrzymano naprawę dla {meter_id} (Cool-down do {last_try + timedelta(hours=4)}).")
+                             start_date = None # Skip
+                        else:
+                             _LOGGER.debug(f"Self-Healing: Wykryto opóźnienie danych ({diff}). Sprawdzam aktualizacje.")
+                             start_date = last_dt
 
                 if start_date:
                      # Pobieramy od wykrytej daty AŻ DO DZISIAJ (żeby zachować ciągłość anchor)
                      days_to_fetch = (dt_util.now().date() - start_date.date()).days + 2
                      if days_to_fetch > 0:
                         # Uruchom import w tle
+                        self._last_repair_attempt[meter_id] = dt_util.now() # Mark attempt
                         self.hass.async_create_task(
                             run_history_import(self.hass, self.api, meter, start_date, days_to_fetch)
                         )
@@ -208,5 +216,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.6.0-beta.7",
+            sw_version="3.6.0-beta.8",
         )

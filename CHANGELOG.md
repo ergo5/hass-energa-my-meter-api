@@ -1,5 +1,13 @@
 # Changelog
 
+## [v3.6.0-beta.8] - 2025-12-17
+
+### New Features 🚀
+- **Circuit Breaker (Safety Mechanism):** Implemented a mandatory **4-hour cooldown** on self-healing attempts.
+- **Protection:** If a history repair attempt fails (e.g. because Energa API is down or lagging), the integration will *wait* 4 hours before trying again for that specific meter. This prevents "infinite retry loops" that could get your IP banned by Energa for excessive requests.
+
+
+
 ## [v3.6.0-beta.7] - 2025-12-17
 
 ### Changed ⚙️
