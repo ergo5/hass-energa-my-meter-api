@@ -1,10 +1,13 @@
 # Changelog
 
-## [v3.6.0-beta.9] - 2025-12-18
+## [v3.6.0-beta.10] - 2025-12-18
 
 ### Fixed 🐛
-- **Self-Healing Crash:** Fixed a critical bug (`NameError: datetime`) that caused the self-healing mechanism to crash every 30 minutes, preventing it from ever running.
-- **Stability:** The integration should now correctly check and repair history gaps without errors.
+- **Self-Healing Crash:** Fixed a critical bug (`NameError: datetime`) that prevented self-healing from running (originally in beta.9).
+- **Manual Import Strings:** Fixed an issue where manual history import could fail with "Internal function received STRING". Added forced data refresh to handle this case.
+- **Deprecation Warnings:** Fixed `mean_type` not being specified in `async_import_statistics` (future HA compatibility).
+- **Stability:** General improvements to error handling during data fetching.
+
 
 
 

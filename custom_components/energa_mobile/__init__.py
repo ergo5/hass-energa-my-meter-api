@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.6.0-beta.9."""
+"""The Energa Mobile integration v3.6.0-beta.10."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -11,7 +11,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.components.recorder.statistics import async_import_statistics
-from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
+from homeassistant.components.recorder.models import StatisticData, StatisticMetaData, StatisticType
 from homeassistant.components import persistent_notification
 
 # FIX: Dodajemy obsługę błędu wygaśnięcia tokena
@@ -54,7 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 # FIX v3.5.24: Explicitly handle string IDs if API quirks return them mixed
                 if isinstance(meter, str): 
                     # Try to find corresponding dict in fresh fetch
-                    ref_data = await api.async_get_data()
+                    ref_data = await api.async_get_data(force_refresh=True)
                     meter_point = next((m for m in ref_data if str(m["meter_point_id"]) == str(meter)), None)
                 
                 if meter_point and isinstance(meter_point, dict):
@@ -209,13 +209,13 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
             if eid_total:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_total,
-                    unit_of_measurement="kWh", unit_class="energy"
+                    unit_of_measurement="kWh", unit_class="energy", mean_type=StatisticType.SUM
                 ), stats_total)
                 
             if eid_daily:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_daily, 
-                    unit_of_measurement="kWh", unit_class="energy"
+                    unit_of_measurement="kWh", unit_class="energy", mean_type=StatisticType.SUM
                 ), stats_daily)
                 
             return len(data_list)
