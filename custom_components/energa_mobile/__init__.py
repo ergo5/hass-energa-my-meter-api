@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.6.0-beta.10."""
+"""The Energa Mobile integration v3.6.0-beta.11."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -11,7 +11,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.components.recorder.statistics import async_import_statistics
-from homeassistant.components.recorder.models import StatisticData, StatisticMetaData, StatisticType
+try:
+    from homeassistant.components.recorder.models import StatisticData, StatisticMetaData, StatisticType
+except ImportError:
+    from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
+    class StatisticType:
+        SUM = "sum"
+        MEAN = "mean"
 from homeassistant.components import persistent_notification
 
 # FIX: Dodajemy obsługę błędu wygaśnięcia tokena

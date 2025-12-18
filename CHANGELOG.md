@@ -1,12 +1,11 @@
 # Changelog
 
-## [v3.6.0-beta.10] - 2025-12-18
+## [v3.6.0-beta.11] - 2025-12-18
 
 ### Fixed 🐛
-- **Self-Healing Crash:** Fixed a critical bug (`NameError: datetime`) that prevented self-healing from running (originally in beta.9).
-- **Manual Import Strings:** Fixed an issue where manual history import could fail with "Internal function received STRING". Added forced data refresh to handle this case.
-- **Deprecation Warnings:** Fixed `mean_type` not being specified in `async_import_statistics` (future HA compatibility).
-- **Stability:** General improvements to error handling during data fetching.
+- **HA 2023.x Compatibility:** Fixed `ImportError: cannot import name 'StatisticType'` on older Home Assistant versions. Added a compatibility shim for `StatisticType.SUM`.
+- **Template Sensors:** Clarified in release notes that template sensors accessing `energa_mobile` entities should handle `unknown`/`unavailable` states (e.g., `| int(0)`).
+
 
 
 
