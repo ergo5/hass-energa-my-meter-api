@@ -1,4 +1,4 @@
-"""The Energa Mobile integration v3.6.0-beta.11."""
+"""The Energa Mobile integration v3.6.0-beta.12."""
 import asyncio
 from datetime import timedelta, datetime
 import logging
@@ -11,13 +11,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.components.recorder.statistics import async_import_statistics
-try:
-    from homeassistant.components.recorder.models import StatisticData, StatisticMetaData, StatisticType
-except ImportError:
-    from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
-    class StatisticType:
-        SUM = "sum"
-        MEAN = "mean"
+from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
 from homeassistant.components import persistent_notification
 
 # FIX: Dodajemy obsługę błędu wygaśnięcia tokena
@@ -215,13 +209,13 @@ async def run_history_import(hass: HomeAssistant, api: EnergaAPI, meter_data: di
             if eid_total:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_total,
-                    unit_of_measurement="kWh", unit_class="energy", mean_type=StatisticType.SUM
+                    unit_of_measurement="kWh", unit_class="energy"
                 ), stats_total)
                 
             if eid_daily:
                 async_import_statistics(hass, StatisticMetaData(
                     has_mean=False, has_sum=True, name=None, source='recorder', statistic_id=eid_daily, 
-                    unit_of_measurement="kWh", unit_class="energy", mean_type=StatisticType.SUM
+                    unit_of_measurement="kWh", unit_class="energy"
                 ), stats_daily)
                 
             return len(data_list)
