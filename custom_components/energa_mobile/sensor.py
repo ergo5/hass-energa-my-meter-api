@@ -198,6 +198,12 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
                 
                 val = meter_data.get(key_to_fetch)
                 if val is not None:
+                    # ZERO-GUARD: Prevent meter reset detection if API returns 0 or glitch
+                    f_val = float(val)
+                    if f_val <= 0 and self._restored_value and float(self._restored_value) > 100:
+                        _LOGGER.warning(f"Energa [{self._meter_id}]: Ignorowano błędny odczyt '0' (poprzedni: {self._restored_value}).")
+                        return self._restored_value
+                        
                     self._restored_value = val
                     return val
 
@@ -216,5 +222,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.6.0-beta.12",
+            sw_version="3.6.0-beta.13",
         )

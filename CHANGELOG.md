@@ -1,10 +1,11 @@
 # Changelog
 
-## [v3.6.0-beta.12] - 2025-12-18
+## [v3.6.0-beta.13] - 2025-12-18
 
 ### Fixed 🐛
-- **Critical History Import Fix:** Reverted `mean_type` usage. Although deprecated, specifying it caused Home Assistant to skip importing data ("Invalid mean type found"). History import is now fully functional again.
-- **Self-Healing & String Fixes:** Retained all stability improvements from beta.10 (Self-Healing `datetime` fix, Manual Import `Force Refresh`).
+- **Zero-Value Spike Protection:** Implemented a new **"Zero Guard"** in the live sensor. If the API returns `0` (or negative) but the previous reading was valid (>100), the incorrect value is ignored. This prevents the "Meter Reset" logic in Home Assistant from firing and causing massive +25,000 kWh spikes on the Energy Dashboard.
+- **Previous Fixes Retained:** All stability fixes from beta.10/12 (Self-Healing, Manual Import) and the History Import revert are included.
+
 
 
 
