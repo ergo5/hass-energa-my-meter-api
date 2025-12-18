@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.15."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.16."""
 from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
@@ -207,9 +207,9 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
                                 if prev_f > 100:
                                     _LOGGER.warning(f"Energa [{self._meter_id}]: Ignorowano błędny odczyt '0' (poprzedni: {self._restored_value}).")
                                     return self._restored_value
-                            except ValueError: pass # Previous value wasn't a float either
-                    except ValueError:
-                        pass # Not a number (e.g. Tariff string 'G11'), skip guard
+                            except (ValueError, TypeError): pass # Previous value wasn't a float either
+                    except (ValueError, TypeError):
+                        pass # Not a number (e.g. Tariff string 'G11', Date object), skip guard
 
                     self._restored_value = val
                     return val
@@ -226,8 +226,16 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
     @property
     def device_info(self):
         """Informacje o urządzeniu."""
+        # FIX v3.6.0-beta.16: Correctly fetch PPE from API data, don't use internal ID
         ppe = self._meter_id
-        serial = self.coordinator.data[0].get("meter_serial", ppe) if self.coordinator.data else ppe
+        serial = self._meter_id
+        
+        if self.coordinator.data:
+             # Find data for this meter safely
+            meter_data = next((m for m in self.coordinator.data if m.get("meter_point_id") == self._meter_id), None)
+            if meter_data:
+                ppe = meter_data.get("ppe", self._meter_id)
+                serial = meter_data.get("meter_serial", self._meter_id)
         
         return DeviceInfo(
             identifiers={("energa_mobile", serial)},
@@ -235,5 +243,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.6.0-beta.15",
+            sw_version="3.6.0-beta.16",
         )

@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.6.0-beta.16 (2025-12-18)
+- **CRITICAL FIX**: Fixed `TypeError: float() argument...` crash for sensors returning Date objects (e.g. Contract Expiry). The "Zero Guard" now safely ignores non-numeric types (strings, dates, None).
+- **FIX**: Resolved `PPE` display regression. Device Info now correctly shows the long PPE number from API instead of internal ID.
+- **Improved**: Simulation suite `simulate_wide.py` added to verify robust handling of all data types (int, float, str, date, None).
+
 ## [v3.6.0-beta.15] - 2025-12-18
 
 ### Fixed 🐛
