@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.12."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.14."""
 from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
@@ -196,14 +196,20 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
                 if self._data_key == "import_total": key_to_fetch = "total_plus"
                 elif self._data_key == "export_total": key_to_fetch = "total_minus"
                 
-                val = meter_data.get(key_to_fetch)
                 if val is not None:
                     # ZERO-GUARD: Prevent meter reset detection if API returns 0 or glitch
-                    f_val = float(val)
-                    if f_val <= 0 and self._restored_value and float(self._restored_value) > 100:
-                        _LOGGER.warning(f"Energa [{self._meter_id}]: Ignorowano błędny odczyt '0' (poprzedni: {self._restored_value}).")
-                        return self._restored_value
-                        
+                    try:
+                        f_val = float(val)
+                        if f_val <= 0 and self._restored_value:
+                            try:
+                                prev_f = float(self._restored_value)
+                                if prev_f > 100:
+                                    _LOGGER.warning(f"Energa [{self._meter_id}]: Ignorowano błędny odczyt '0' (poprzedni: {self._restored_value}).")
+                                    return self._restored_value
+                            except ValueError: pass # Previous value wasn't a float either
+                    except ValueError:
+                        pass # Not a number (e.g. Tariff string 'G11'), skip guard
+
                     self._restored_value = val
                     return val
 
@@ -222,5 +228,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.6.0-beta.13",
+            sw_version="3.6.0-beta.14",
         )
