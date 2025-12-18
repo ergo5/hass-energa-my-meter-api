@@ -1,5 +1,13 @@
 # Changelog
 
+## [v3.6.0-beta.9] - 2025-12-18
+
+### Fixed 🐛
+- **Self-Healing Crash:** Fixed a critical bug (`NameError: datetime`) that caused the self-healing mechanism to crash every 30 minutes, preventing it from ever running.
+- **Stability:** The integration should now correctly check and repair history gaps without errors.
+
+
+
 ## [v3.6.0-beta.8] - 2025-12-17
 
 ### New Features 🚀

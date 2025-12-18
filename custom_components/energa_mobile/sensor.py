@@ -1,5 +1,5 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.8."""
-from datetime import timedelta
+"""Sensor platform for Energa Mobile v3.6.0-beta.9."""
+from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
     SensorEntity, SensorDeviceClass, SensorStateClass,
@@ -216,5 +216,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.6.0-beta.8",
+            sw_version="3.6.0-beta.9",
         )
