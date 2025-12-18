@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.14."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.15."""
 from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
@@ -196,6 +196,7 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
                 if self._data_key == "import_total": key_to_fetch = "total_plus"
                 elif self._data_key == "export_total": key_to_fetch = "total_minus"
                 
+                val = meter_data.get(key_to_fetch)
                 if val is not None:
                     # ZERO-GUARD: Prevent meter reset detection if API returns 0 or glitch
                     try:
@@ -218,15 +219,21 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         return None
 
     @property
-    def device_info(self) -> DeviceInfo:
-        meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), {}) if self.coordinator.data else {}
-        ppe = meter_data.get("ppe", "Unknown")
-        serial = meter_data.get("meter_serial", str(self._meter_id))
+    def native_unit_of_measurement(self):
+        """Jednostka."""
+        return self._attr_native_unit_of_measurement
+
+    @property
+    def device_info(self):
+        """Informacje o urządzeniu."""
+        ppe = self._meter_id
+        serial = self.coordinator.data[0].get("meter_serial", ppe) if self.coordinator.data else ppe
+        
         return DeviceInfo(
-            identifiers={(DOMAIN, str(self._meter_id))},
-            name=f"Licznik Energa {serial}",
+            identifiers={("energa_mobile", serial)},
+            name=f"Energa Mobile {serial}",
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.6.0-beta.14",
+            sw_version="3.6.0-beta.15",
         )

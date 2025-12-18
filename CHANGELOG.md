@@ -1,10 +1,11 @@
 # Changelog
 
-## [v3.6.0-beta.14] - 2025-12-18
+## [v3.6.0-beta.15] - 2025-12-18
 
 ### Fixed 🐛
-- **Zero-Guard Crash Fix:** Fixed `ValueError: could not convert string to float` for text sensors (Tariff, Address). The Zero-Guard now safely skips non-numeric values.
-- **Persistent:** "Invalid mean_type" warnings in logs may persist briefly due to cached metadata in Home Assistant's database from beta.11, but `mean_type` is definitively removed from the code.
+- **NameError Fix:** Fixed critical `NameError: name 'val' is not defined` introduced in beta.14. The variable assignment was accidentally removed during the previous fix; it has been restored.
+- **Zero-Guard Stability:** Ensure Zero-Guard logic is strictly scoped to valid data to prevent further regressions.
+
 
 
 
