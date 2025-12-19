@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.6.0-beta.17
+*   **FIX:** Changed default API initialization from `0.0` to `None`. This prevents missing data (e.g. API errors) from being interpreted as a meter reset, eliminating massive spikes in the Energy Dashboard.
+*   **FIX:** Upgraded "Zero Guard" logging from Warning to Error for better visibility of potential zero-drop events.
+
 ## v3.6.0-beta.16 (2025-12-18)
 - **CRITICAL FIX**: Fixed `TypeError: float() argument...` crash for sensors returning Date objects (e.g. Contract Expiry). The "Zero Guard" now safely ignores non-numeric types (strings, dates, None).
 - **FIX**: Resolved `PPE` display regression. Device Info now correctly shows the long PPE number from API instead of internal ID.

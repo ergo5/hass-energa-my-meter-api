@@ -1,4 +1,4 @@
-"""API interface for Energa Mobile v3.6.0-beta.16."""
+"""API interface for Energa Mobile v3.6.0-beta.17."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -96,8 +96,8 @@ class EnergaAPI:
             
             meter_obj = {
                 "meter_point_id": mp.get("id"), "ppe": ppe, "meter_serial": serial, "tariff": mp.get("tariff"), 
-                "address": ag.get("address"), "contract_date": c_date, "daily_pobor": 0.0, "daily_produkcja": 0.0, 
-                "total_plus": 0.0, "total_minus": 0.0, "obis_plus": None, "obis_minus": None
+                "address": ag.get("address"), "contract_date": c_date, "daily_pobor": None, "daily_produkcja": None, 
+                "total_plus": None, "total_minus": None, "obis_plus": None, "obis_minus": None
             }
             
             for m in mp.get("lastMeasurements", []):

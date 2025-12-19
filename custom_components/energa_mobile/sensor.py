@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.16."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.17."""
 from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
@@ -205,7 +205,7 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
                             try:
                                 prev_f = float(self._restored_value)
                                 if prev_f > 100:
-                                    _LOGGER.warning(f"Energa [{self._meter_id}]: Ignorowano błędny odczyt '0' (poprzedni: {self._restored_value}).")
+                                    _LOGGER.error(f"Energa [{self._meter_id}]: Ignorowano błędny odczyt '0' (poprzedni: {self._restored_value}).")
                                     return self._restored_value
                             except (ValueError, TypeError): pass # Previous value wasn't a float either
                     except (ValueError, TypeError):
@@ -243,5 +243,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.6.0-beta.16",
+            sw_version="3.6.0-beta.17",
         )
