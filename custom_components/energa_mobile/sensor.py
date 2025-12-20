@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.17."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.18."""
 from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
@@ -201,13 +201,19 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
                     # ZERO-GUARD: Prevent meter reset detection if API returns 0 or glitch
                     try:
                         f_val = float(val)
-                        if f_val <= 0 and self._restored_value:
-                            try:
-                                prev_f = float(self._restored_value)
-                                if prev_f > 100:
-                                    _LOGGER.error(f"Energa [{self._meter_id}]: Ignorowano błędny odczyt '0' (poprzedni: {self._restored_value}).")
-                                    return self._restored_value
-                            except (ValueError, TypeError): pass # Previous value wasn't a float either
+                        if f_val <= 0:
+                            # STRICT ZERO GUARD (v3.6.0-beta.18):
+                            # Reject 0/negative values ALWAYS, even on first run.
+                            # We expect a meter to have >0 reading.
+                            if self._restored_value and float(self._restored_value) > 100:
+                                _LOGGER.error(f"Energa [{self._meter_id}]: Ignorowano '0' (poprzedni: {self._restored_value}).")
+                                return self._restored_value
+                            else:
+                                # New install or no history? Still, 0 is likely wrong for a main meter.
+                                # Return None to stay 'Unknown' rather than spiking.
+                                _LOGGER.warning(f"Energa [{self._meter_id}]: Ignorowano '0' na starcie.")
+                                return None
+                    except (ValueError, TypeError): pass # Not a float
                     except (ValueError, TypeError):
                         pass # Not a number (e.g. Tariff string 'G11', Date object), skip guard
 
