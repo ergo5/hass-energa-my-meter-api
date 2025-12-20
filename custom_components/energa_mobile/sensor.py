@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.18."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.19."""
 from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
@@ -192,33 +192,35 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), None)
             if meter_data:
                 key_to_fetch = self._data_key
-                # Mapowanie Nowych Sensorów na Total (Live) - FIX v3.5.17 (Smart Import alignment)
-                if self._data_key == "import_total": key_to_fetch = "total_plus"
-                elif self._data_key == "export_total": key_to_fetch = "total_minus"
+                # REMAP v3.6.0-beta.19: Use Daily Chart Data (fresh) instead of Meter Total (stale)
+                # This ensures the Energy Dashboard gets up-to-date data even if the Main Counter lags.
+                if self._data_key == "import_total": key_to_fetch = "daily_pobor"
+                elif self._data_key == "export_total": key_to_fetch = "daily_produkcja"
                 
                 val = meter_data.get(key_to_fetch)
                 if val is not None:
                     # ZERO-GUARD: Prevent meter reset detection if API returns 0 or glitch
                     try:
                         f_val = float(val)
-                        if f_val <= 0:
-                            # STRICT ZERO GUARD (v3.6.0-beta.18):
-                            # Reject 0/negative values ALWAYS, even on first run.
-                            # We expect a meter to have >0 reading.
+                        
+                        # STRICT ZERO GUARD (v3.6.0-beta.18) - Modified for beta.19
+                        # Only apply strict guard to LIFETIME counters (total_plus/total_minus).
+                        # Daily sensors (daily_pobor) can validly be 0.
+                        is_lifetime = key_to_fetch in ["total_plus", "total_minus"]
+                        
+                        if is_lifetime and f_val <= 0:
                             if self._restored_value and float(self._restored_value) > 100:
                                 _LOGGER.error(f"Energa [{self._meter_id}]: Ignorowano '0' (poprzedni: {self._restored_value}).")
                                 return self._restored_value
                             else:
-                                # New install or no history? Still, 0 is likely wrong for a main meter.
-                                # Return None to stay 'Unknown' rather than spiking.
-                                _LOGGER.warning(f"Energa [{self._meter_id}]: Ignorowano '0' na starcie.")
+                                _LOGGER.warning(f"Energa [{self._meter_id}]: Ignorowano '0' na starcie (Lifetime).")
                                 return None
-                    except (ValueError, TypeError): pass # Not a float
                     except (ValueError, TypeError):
-                        pass # Not a number (e.g. Tariff string 'G11', Date object), skip guard
+                        pass # Not a number, skip guard
 
                     self._restored_value = val
                     return val
+
 
         if self._restored_value is not None:
             return self._restored_value

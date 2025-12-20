@@ -1,4 +1,4 @@
-"""API interface for Energa Mobile v3.6.0-beta.18."""
+"""API interface for Energa Mobile v3.6.0-beta.19."""
 import logging
 import aiohttp
 from datetime import datetime
