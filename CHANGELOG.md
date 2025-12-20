@@ -1,13 +1,14 @@
 # Changelog
 
 ## v3.6.0-beta.19 (2025-12-20)
-*   **Fix:** Zmiana źródła danych dla głównych sensorów "Panel Energia" (`import_panel_energia`). Od teraz pobierają one dane z **Wykresu Dziennego** (który jest zawsze aktualny) zamiast z endpointu Licznika Głównego (który często ma opóźnienia 1-3 dni).
-*   Ta zmiana naprawia brak słupków "na żywo" w Panelu Energia, zapewniając zgodność z oficjalną aplikacją Energa.
-*   Sensor "Stan Licznika" (`stan_licznika_pobor`) nadal pokazuje surowy stan licznika (total) z API.
-*   **Fix:** Dostosowanie "Strict Zero Guard", aby pozwalał na zerowe odczyty dla sensorów dziennych (gdzie 0 jest poprawną wartością o północy), ale nadal blokował błędne zera dla liczników sumarycznych (Lifetime).
+*   **Fix:** Changed data source for main "Energy Panel" sensors (`import_panel_energia`). They now fetch data from the **Daily Chart** (which is always up-to-date) instead of the Main Meter endpoint (which often lags 1-3 days).
+*   This change fixes the missing "live" bars in the Energy Dashboard, ensuring correct alignment with the official Energa app.
+*   The "Meter Counter" sensor (`stan_licznika_pobor`) still shows the raw meter index (total) from the API.
+*   **Fix:** Adjusted "Strict Zero Guard" to allow zero readings for daily sensors (where 0 is valid at midnight), while still blocking erroneous zeros for total counters (Lifetime).
+*   **Hotfix:** Fixed SyntaxError in `sensor.py` that caused unavailability.
 
 ## v3.6.0-beta.18 (2025-12-20)
-*   **Fix:** Zmiana logiki "Zero Guard" na bardziej restrykcyjną. Od teraz integracja **całkowicie odrzuca odczyty "0" z API**, nawet przy pierwszym uruchomieniu.
+*   **Fix:** Implemented "Strict Zero Guard" logic. The integration now **rejects "0" readings from the API** during initialization if no history exists, preventing 0->24000 initialization spikes.
 
 ## v3.6.0-beta.17 (2025-12-20)
-*   **Fix:** Implementacja "Zero Guard" w `sensor.py`.
+*   **Fix:** Added "Zero Guard" implementation in `sensor.py`.
