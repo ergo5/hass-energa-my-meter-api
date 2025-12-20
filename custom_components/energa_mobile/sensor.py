@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.19."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.20."""
 from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
@@ -11,6 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity, DataUpdateCoordinator, UpdateFailed
 )
+from homeassistant.loader import async_get_integration
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.restore_state import RestoreEntity
 
@@ -26,6 +27,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     try: await coordinator.async_config_entry_first_refresh()
     except Exception: _LOGGER.warning("Energa: Start bez pełnych danych.")
 
+    # FIX: Dynamic version fetching
+    integration = await async_get_integration(hass, DOMAIN)
+    sw_version = integration.version
+
     entities = []
     meters_data = coordinator.data or []
     
@@ -36,7 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         meter_id = meter["meter_point_id"]
 
         for key, name, unit, dclass, sclass, icon, category in SENSOR_TYPES:
-            entities.append(EnergaSensor(coordinator, meter_id, key, name, unit, dclass, sclass, icon, category))
+            entities.append(EnergaSensor(coordinator, meter_id, key, name, unit, dclass, sclass, icon, category, sw_version))
 
     async_add_entities(entities)
 
@@ -158,6 +163,7 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         state_class,
         icon,
         category,
+        sw_version,
     ):
         super().__init__(coordinator)
         self._meter_id = meter_id
@@ -169,6 +175,7 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         self._attr_icon = icon
         self._attr_entity_category = category 
         self._restored_value = None
+        self._sw_version = sw_version
         
         # NUCLEAR OPTION v3 - Force fresh entities to clear history spikes
         # v3.5.23: Switched to _v3 suffix
@@ -251,5 +258,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version="3.6.0-beta.17",
+            sw_version=self._sw_version,
         )
