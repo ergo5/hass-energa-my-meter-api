@@ -353,9 +353,9 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         ppe = self._meter_id
         serial = self._meter_id
         
-        if self.coordinator.data:
-             # Find data for this meter safely
-            meter_data = next((m for m in self.coordinator.data if m.get("meter_point_id") == self._meter_id), None)
+        if self.coordinator.data and self.coordinator.data.get("live"):
+             # Find data for this meter safely from "live" data
+            meter_data = next((m for m in self.coordinator.data["live"] if m.get("meter_point_id") == self._meter_id), None)
             if meter_data:
                 ppe = meter_data.get("ppe", self._meter_id)
                 serial = meter_data.get("meter_serial", self._meter_id)
@@ -366,5 +366,5 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe} | Licznik: {serial}",
             configuration_url="https://mojlicznik.energa-operator.pl",
-            sw_version=self._sw_version,
+            sw_version=str(self._sw_version),  # Ensure string for AwesomeVersion compatibility
         )
