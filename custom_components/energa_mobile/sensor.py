@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.20."""
+"""Sensor platform for Energa Mobile v3.6.0-beta.21."""
 from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
@@ -198,13 +198,7 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         if self.coordinator.data:
             meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), None)
             if meter_data:
-                key_to_fetch = self._data_key
-                # REMAP v3.6.0-beta.19: Use Daily Chart Data (fresh) instead of Meter Total (stale)
-                # This ensures the Energy Dashboard gets up-to-date data even if the Main Counter lags.
-                if self._data_key == "import_total": key_to_fetch = "daily_pobor"
-                elif self._data_key == "export_total": key_to_fetch = "daily_produkcja"
-                
-                val = meter_data.get(key_to_fetch)
+                val = meter_data.get(self._data_key)
                 if val is not None:
                     # ZERO-GUARD: Prevent meter reset detection if API returns 0 or glitch
                     try:
@@ -213,7 +207,7 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
                         # STRICT ZERO GUARD (v3.6.0-beta.18) - Modified for beta.19
                         # Only apply strict guard to LIFETIME counters (total_plus/total_minus).
                         # Daily sensors (daily_pobor) can validly be 0.
-                        is_lifetime = key_to_fetch in ["total_plus", "total_minus"]
+                        is_lifetime = self._data_key in ["total_plus", "total_minus", "import_total", "export_total"]
                         
                         if is_lifetime and f_val <= 0:
                             if self._restored_value and float(self._restored_value) > 100:
