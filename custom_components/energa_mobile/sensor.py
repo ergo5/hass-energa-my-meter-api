@@ -31,19 +31,85 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     integration = await async_get_integration(hass, DOMAIN)
     sw_version = integration.version
 
-    entities = []
-    meters_data = coordinator.data or []
+    # NEW v3.7: coordinator.data is now {live: [...], hourly_stats: {...}}
+    #meters_data = coordinator.data.get("live", []) if coordinator.data else []
     
-    if not meters_data: return
+    if not coordinator.data or not coordinator.data.get("live"):
+        _LOGGER.warning("No meter data available at startup")
+        return
+
+    meters_data = coordinator.data["live"]
+    
+    # SPLIT: Create live sensors (visible, for diagnostics)
+    live_sensors = _create_live_sensors(coordinator, meters_data, sw_version)
+    
+    # SPLIT: Create statistics sensors (invisible, for Energy Dashboard)
+    stats_sensors = _create_statistics_sensors(coordinator, meters_data, sw_version)
+    
+    _LOGGER.info(
+        f"Created {len(live_sensors)} live sensors and {len(stats_sensors)} statistics sensors"
+    )
+    
+    async_add_entities(live_sensors + stats_sensors)
 
 
+def _create_live_sensors(coordinator, meters_data, sw_version):
+    """Create live state sensors (visible in UI, for diagnostics)."""
+    sensors = []
+    
     for meter in meters_data:
         meter_id = meter["meter_point_id"]
-
         for key, name, unit, dclass, sclass, icon, category in SENSOR_TYPES:
-            entities.append(EnergaSensor(coordinator, meter_id, key, name, unit, dclass, sclass, icon, category, sw_version))
+            sensors.append(
+                EnergaSensor(
+                    coordinator, meter_id, key, name, unit, 
+                    dclass, sclass, icon, category, sw_version
+                )
+            )
+    
+    return sensors
 
-    async_add_entities(entities)
+
+def _create_statistics_sensors(coordinator, meters_data, sw_version):
+    """Create invisible statistics sensors (Energy Dashboard only)."""
+    from .statistics_sensor import EnergaStatisticsSensor
+    from homeassistant.helpers.device_registry import DeviceInfo
+    
+    sensors = []
+    
+    for meter in meters_data:
+        meter_id = meter["meter_point_id"]
+        ppe = meter.get("ppe", meter_id)
+        serial = meter.get("meter_serial", meter_id)
+        
+        # Device info (same as live sensors)
+        device_info = DeviceInfo(
+            identifiers={(DOMAIN, serial)},
+            name=f"Energa Mobile {serial}",
+            manufacturer="Energa-Operator",
+            model=f"PPE: {ppe} | Licznik: {serial}",
+            configuration_url="https://mojlicznik.energa-operator.pl",
+            sw_version=sw_version,
+        )
+        
+        # Create statistics sensors (PANEL prominent naming)
+        sensors.append(
+            EnergaStatisticsSensor(
+                coordinator, meter_id, "import", 
+                "Energa Panel Import",  # PANEL in name
+                device_info
+            )
+        )
+        sensors.append(
+            EnergaStatisticsSensor(
+                coordinator, meter_id, "export", 
+                "Energa Panel Export",
+                device_info
+            )
+        )
+    
+    return sensors
+
 
 class EnergaDataCoordinator(DataUpdateCoordinator):
     """Koordynator aktualizacji danych."""
@@ -60,17 +126,44 @@ class EnergaDataCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         try:
-            data = await self.api.async_get_data()
-            # Self-Healing Check (v3.6.0-beta.5)
-            self.hass.async_create_task(self._check_and_fix_history(data))
-            return data
+            # Fetch live meter data (meterPoints endpoint)
+            live_data = await self.api.async_get_data()
+            
+            # NEW v3.7: Fetch hourly statistics (mainChart endpoint)
+            # This powers the invisible statistics sensors for Energy Dashboard
+            hourly_stats = {}
+            for meter in live_data:
+                meter_id = meter["meter_point_id"]
+                try:
+                    hourly_stats[meter_id] = await self.api.async_get_hourly_statistics(
+                        meter_id, days_back=2  # Last 48 hours
+                    )
+                    _LOGGER.debug(
+                        f"Fetched hourly stats for {meter_id}: "
+                        f"{len(hourly_stats[meter_id].get('import', []))} import points, "
+                        f"{len(hourly_stats[meter_id].get('export', []))} export points"
+                    )
+                except Exception as e:
+                    _LOGGER.error(f"Failed to fetch hourly stats for {meter_id}: {e}")
+                    hourly_stats[meter_id] = {"import": [], "export": []}
+            
+            # Return combined data structure
+            result = {
+                "live": live_data,  # For live sensors (total, daily, tariff, etc.)
+                "hourly_stats": hourly_stats  # For statistics sensors
+            }
+            
+            # Self-Healing Check (v3.6.0-beta.5) - operates on live data
+            self.hass.async_create_task(self._check_and_fix_history(live_data))
+            
+            return result
         
         # FIX: Dodana obsługa wygaśnięcia tokena
         except EnergaTokenExpiredError as err:
             _LOGGER.warning("Token Energa wygasł. Próbuję ponownego logowania.")
             try:
                 await self.api.async_login()
-                return await self.api.async_get_data()
+                return await self._async_update_data()  # Retry entire fetch
             except EnergaAuthError:
                 raise UpdateFailed(f"Błąd autoryzacji Energa po wygaśnięciu tokena: {err}") from err
             except EnergaConnectionError:
@@ -84,6 +177,23 @@ class EnergaDataCoordinator(DataUpdateCoordinator):
         
         except Exception as err:
             raise UpdateFailed(f"Nieznany błąd Energa: {err}") from err
+
+    def get_hourly_statistics(self, meter_id: str, data_key: str):
+        """Get hourly statistics for a specific meter and data key.
+        
+        Args:
+            meter_id: Meter point ID
+            data_key: "import" or "export"
+            
+        Returns:
+            List of StatisticData dicts with "start" and "sum" keys
+        """
+        if not self.data:
+            return []
+        
+        hourly_stats = self.data.get("hourly_stats", {})
+        meter_stats = hourly_stats.get(meter_id, {})
+        return meter_stats.get(data_key, [])
 
     async def _check_and_fix_history(self, meters_data):
         """Self-healing: wykrywanie dziur w historii i autonaprawa."""
@@ -195,8 +305,12 @@ class EnergaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
     @property
     def native_value(self):
         """Zwraca stan sensora z API lub przywrócony stan."""
-        if self.coordinator.data:
-            meter_data = next((m for m in self.coordinator.data if m["meter_point_id"] == self._meter_id), None)
+        # NEW v3.7: coordinator.data is now {live: [...], hourly_stats: {...}}
+        if self.coordinator.data and self.coordinator.data.get("live"):
+            meter_data = next(
+                (m for m in self.coordinator.data["live"] if m["meter_point_id"] == self._meter_id), 
+                None
+            )
             if meter_data:
                 val = meter_data.get(self._data_key)
                 if val is not None:

@@ -1,4 +1,4 @@
-"""API interface for Energa Mobile v3.6.0-beta.21."""
+"""API interface for Energa Mobile v3.7.0-dev."""
 import logging
 import aiohttp
 from datetime import datetime
@@ -74,6 +74,76 @@ class EnergaAPI:
             result["export"] = await self._fetch_chart(meter["meter_point_id"], meter["obis_minus"], ts)
         
         _LOGGER.debug(f"History {date.date()} (ts={ts}): Import={len(result['import'])} pts, Export={len(result['export'])} pts")
+        
+        return result
+
+    async def async_get_hourly_statistics(self, meter_point_id: str, days_back: int = 2):
+        """Fetch hourly statistics for last N days in StatisticData format.
+        
+        Args:
+            meter_point_id: Meter ID to fetch data for
+            days_back: Number of days to fetch (default 2 = 48 hours)
+            
+        Returns:
+            dict with "import" and "export" keys containing lists of StatisticData dicts
+            Each StatisticData dict has:
+                - "start": datetime object (hour start time in Europe/Warsaw)
+                - "sum": float (cumulative kWh at that hour)
+        """
+        from datetime import timedelta
+        
+        tz = ZoneInfo("Europe/Warsaw")
+        now = datetime.now(tz)
+        
+        result = {"import": [], "export": []}
+        
+        # Fetch data for each day in range
+        for day_offset in range(days_back):
+            target_date = now - timedelta(days=day_offset)
+            day_data = await self.async_get_history_hourly(meter_point_id, target_date)
+            
+            # Convert hourly values to cumulative sums (StatisticData format)
+            # Energa API returns hourly consumption values, we need cumulative
+            
+            if day_data.get("import"):
+                hourly_import = day_data["import"]
+                # Build cumulative sum from hourly values
+                cumulative = 0.0
+                for hour_idx, hourly_value in enumerate(hourly_import):
+                    cumulative += hourly_value
+                    hour_start = target_date.replace(
+                        hour=hour_idx, minute=0, second=0, microsecond=0
+                    ).astimezone(tz)
+                    
+                    result["import"].append({
+                        "start": hour_start,
+                        "sum": cumulative
+                    })
+            
+            if day_data.get("export"):
+                hourly_export = day_data["export"]
+                cumulative = 0.0
+                for hour_idx, hourly_value in enumerate(hourly_export):
+                    cumulative += hourly_value
+                    hour_start = target_date.replace(
+                        hour=hour_idx, minute=0, second=0, microsecond=0
+                    ).astimezone(tz)
+                    
+                    result["export"].append({
+                        "start": hour_start,
+                        "sum": cumulative
+                    })
+        
+        # Sort by timestamp (oldest first) for proper statistics import
+        if result["import"]:
+            result["import"] = sorted(result["import"], key=lambda x: x["start"])
+        if result["export"]:
+            result["export"] = sorted(result["export"], key=lambda x: x["start"])
+        
+        _LOGGER.debug(
+            f"Hourly statistics for {meter_point_id} (last {days_back} days): "
+            f"Import={len(result['import'])} points, Export={len(result['export'])} points"
+        )
         
         return result
 
