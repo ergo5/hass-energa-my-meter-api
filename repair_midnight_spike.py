@@ -36,62 +36,82 @@ def repair_midnight_spike():
     cursor = conn.cursor()
 
     try:
-        # Find the sensor
-        cursor.execute("SELECT id FROM statistics_meta WHERE statistic_id = 'sensor.energa_import_panel_energia'")
-        row = cursor.fetchone()
-        if not row:
-            print("❌ ERROR: sensor.energa_import_panel_energia not found!")
-            return False
+        # Find both sensors
+        sensors = [
+            'sensor.energa_import_panel_energia',
+            'sensor.energa_export_panel_energia'
+        ]
         
-        meta_id = row[0]
-        print(f"\n✓ Found sensor (metadata_id: {meta_id})")
+        total_short_deleted = 0
+        total_long_deleted = 0
         
-        # Find the midnight transition timestamp (2025-12-21 00:00:00 in your timezone)
-        # Convert to UTC epoch for SQLite
-        transition_time = datetime(2025, 12, 21, 0, 0, 0).timestamp()
+        for sensor_id in sensors:
+            cursor.execute("SELECT id FROM statistics_meta WHERE statistic_id = ?", (sensor_id,))
+            row = cursor.fetchone()
+            if not row:
+                print(f"⚠️  WARNING: {sensor_id} not found! Skipping.")
+                continue
+            
+            meta_id = row[0]
+            print(f"\n✓ Found sensor: {sensor_id} (metadata_id: {meta_id})")
+            
+            # Find the midnight transition timestamp (2025-12-21 00:00:00)
+            transition_time = datetime(2025, 12, 21, 0, 0, 0).timestamp()
+            
+            # Count affected rows in short-term
+            cursor.execute("""
+                SELECT COUNT(*) FROM statistics_short_term 
+                WHERE metadata_id = ? AND start_ts >= ?
+            """, (meta_id, transition_time))
+            short_count = cursor.fetchone()[0]
+            
+            # Count affected rows in long-term
+            cursor.execute("""
+                SELECT COUNT(*) FROM statistics 
+                WHERE metadata_id = ? AND start_ts >= ?
+            """, (meta_id, transition_time))
+            long_count = cursor.fetchone()[0]
+            
+            print(f"   📊 Statistics to delete:")
+            print(f"      - Short-term: {short_count} rows")
+            print(f"      - Long-term: {long_count} rows")
+            
+            if short_count == 0 and long_count == 0:
+                print(f"   ✓ No affected statistics. Already clean!")
+                continue
+            
+            # Delete from short-term
+            cursor.execute("""
+                DELETE FROM statistics_short_term 
+                WHERE metadata_id = ? AND start_ts >= ?
+            """, (meta_id, transition_time))
+            
+            # Delete from long-term
+            cursor.execute("""
+                DELETE FROM statistics 
+                WHERE metadata_id = ? AND start_ts >= ?
+            """, (meta_id, transition_time))
+            
+            total_short_deleted += short_count
+            total_long_deleted += long_count
+            
+            print(f"   ✅ Deleted {short_count + long_count} statistics rows")
         
-        # Count affected rows in short-term
-        cursor.execute("""
-            SELECT COUNT(*) FROM statistics_short_term 
-            WHERE metadata_id = ? AND start_ts >= ?
-        """, (meta_id, transition_time))
-        short_count = cursor.fetchone()[0]
-        
-        # Count affected rows in long-term
-       cursor.execute("""
-            SELECT COUNT(*) FROM statistics 
-            WHERE metadata_id = ? AND start_ts >= ?
-        """, (meta_id, transition_time))
-        long_count = cursor.fetchone()[0]
-        
-        print(f"\n📊 Statistics to delete:")
-        print(f"   - Short-term: {short_count} rows")
-        print(f"   - Long-term: {long_count} rows")
-        
-        if short_count == 0 and long_count == 0:
+        if total_short_deleted == 0 and total_long_deleted == 0:
             print("\n✓ No affected statistics found. Database already clean!")
             return True
         
-        # Delete from short-term
-        cursor.execute("""
-            DELETE FROM statistics_short_term 
-            WHERE metadata_id = ? AND start_ts >= ?
-        """, (meta_id, transition_time))
-        
-        # Delete from long-term
-        cursor.execute("""
-            DELETE FROM statistics 
-            WHERE metadata_id = ? AND start_ts >= ?
-        """, (meta_id, transition_time))
-        
         conn.commit()
         
-        print(f"\n✅ SUCCESS: Deleted {short_count + long_count} statistics rows.")
-        print("   Home Assistant will rebuild these from live sensor data.")
+        print(f"\n{'=' * 70}")
+        print(f"✅ SUCCESS: Deleted {total_short_deleted + total_long_deleted} total statistics rows.")
+        print(f"   - Short-term: {total_short_deleted}")
+        print(f"   - Long-term: {total_long_deleted}")
         print("\n💡 Next steps:")
         print("   1. Update to beta.21 (which reverts the source switch)")
         print("   2. Restart Home Assistant")
-        print("   3. The sensor will resume using the lifetime counter")
+        print("   3. Sensors will resume using lifetime counters")
+
         
         return True
         
