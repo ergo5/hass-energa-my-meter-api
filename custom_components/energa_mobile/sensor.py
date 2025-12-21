@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v3.6.0-beta.21."""
+"""Sensor platform for Energa Mobile v3.7.0-dev."""
 from datetime import timedelta, datetime
 import logging
 from homeassistant.components.sensor import (
