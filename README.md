@@ -1,6 +1,8 @@
-# Energa Mobile Integration for Home Assistant
+<div align="center">
+  <img src="logo.png" alt="Energa Mobile API Logo" width="300"/>
+</div>
 
-![Energa Mobile API Logo](logo.png)
+<h1 align="center">Energa Mobile Integration for Home Assistant</h1>
 
 
 ![Version](https://img.shields.io/badge/version-v4.0.2-green)
