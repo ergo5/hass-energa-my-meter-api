@@ -148,6 +148,7 @@ async def async_setup_entry(
                     name="Panel Energia Produkcja",
                     device_info=device_info,
                 )
+            )
 
 
         # === INFO SENSORS (Separate entities for details) ===
