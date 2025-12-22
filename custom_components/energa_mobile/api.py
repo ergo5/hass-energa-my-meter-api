@@ -206,6 +206,8 @@ class EnergaAPI:
         try:
             data = await self._api_get(CHART_ENDPOINT, params=params)
             return [ (p.get("zones", [0])[0] or 0.0) for p in data["response"]["mainChart"] ]
+        except EnergaTokenExpiredError:
+            raise  # Propagate to coordinator for re-login
         except Exception as e:
             _LOGGER.error(f"Error fetching chart for {meter_id}: {e}")
             return []
