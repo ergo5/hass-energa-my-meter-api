@@ -1,5 +1,8 @@
 # Energa Mobile Integration for Home Assistant
 
+![Energa Mobile API Logo](logo.png)
+
+
 ![Version](https://img.shields.io/badge/version-v4.0.2-green)
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
