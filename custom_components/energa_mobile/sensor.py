@@ -148,7 +148,31 @@ async def async_setup_entry(
                     name="Panel Energia Produkcja",
                     device_info=device_info,
                 )
+                )
             )
+
+        # === INFO SENSORS (Separate entities for details) ===
+        
+        info_types = [
+            ("address", "Adres", "mdi:map-marker", None),
+            ("tariff", "Taryfa", "mdi:cash-multiple", None),
+            ("ppe", "PPE", "mdi:identifier", None),
+            ("meter_serial", "Numer Licznika", "mdi:counter", None),
+        ]
+
+        for key, name, icon, device_class in info_types:
+            if meter.get(key):
+                sensors.append(
+                    EnergaInfoSensor(
+                        coordinator=coordinator,
+                        meter_id=meter_id,
+                        data_key=key,
+                        name=f"{name}",
+                        icon=icon,
+                        device_info=device_info,
+                        device_class=device_class
+                    )
+                )
     
     _LOGGER.info("Created %d Energa sensors (4 live + 2 statistics)", len(sensors))
     async_add_entities(sensors, update_before_add=True)
@@ -416,5 +440,46 @@ class EnergaStatisticsSensor(CoordinatorEntity):
         
         async_import_statistics(self.hass, metadata, statistics_data)
         
+        async_import_statistics(self.hass, metadata, statistics_data)
+        
         # Call parent update
         super()._handle_coordinator_update()
+
+
+class EnergaInfoSensor(CoordinatorEntity, SensorEntity):
+    """Info sensor showing static meter details (Address, Tariff, etc)."""
+
+    def __init__(
+        self,
+        coordinator,
+        meter_id: str,
+        data_key: str,
+        name: str,
+        icon: str,
+        device_info: DeviceInfo,
+        device_class: str = None,
+    ) -> None:
+        """Initialize info sensor."""
+        super().__init__(coordinator)
+        
+        self._meter_id = meter_id
+        self._data_key = data_key
+        
+        # Entity attributes
+        self._attr_name = name
+        self._attr_unique_id = f"energa_{meter_id}_{data_key}_info"
+        self._attr_has_entity_name = True
+        self._attr_device_class = device_class
+        self._attr_icon = icon
+        self._attr_device_info = device_info
+
+    @property
+    def native_value(self):
+        """Return the value from coordinator data."""
+        if not self.coordinator.data:
+            return None
+        
+        for meter in self.coordinator.data:
+            if str(meter.get("meter_point_id")) == str(self._meter_id):
+                return meter.get(self._data_key)
+        return None
