@@ -76,6 +76,10 @@
 > [!TIP]
 > Do NOT use `Energa Pobór Dziś` or `Stan Licznika` for the Energy Dashboard. Only use the ones marked **(Panel Energia)**.
 
+> [!NOTE]
+> **"Entity Unavailable" (Encja niedostępna)?**
+> This is **NORMAL** and expected. The statistics sensors (`energa_import_stats`, `energa_export_stats`) are designed *only* for the Energy Dashboard background processing. They do not have a live "state" to display in the standard UI, so Home Assistant may show them as "Unavailable" or "Unknown" in lists. **They will still work correctly in the Energy Dashboard.**
+
 ---
 
 <h2 id="import-history">📅 History Import & Repair (Naprawa Historii)</h2>
