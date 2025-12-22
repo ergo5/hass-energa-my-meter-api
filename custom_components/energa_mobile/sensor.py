@@ -285,6 +285,23 @@ class EnergaLiveSensor(CoordinatorEntity, SensorEntity):
         """Sensor is available when we have data."""
         return self.coordinator.data is not None and self.native_value is not None
 
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        if not self.coordinator.data:
+            return {}
+
+        for meter in self.coordinator.data:
+            if str(meter.get("meter_point_id")) == str(self._meter_id):
+                return {
+                    "adres": meter.get("address"),
+                    "taryfa": meter.get("tariff"),
+                    "ppe": meter.get("ppe"),
+                    "numer_licznika": meter.get("meter_serial"),
+                    "data_umowy": str(meter.get("contract_date")) if meter.get("contract_date") else None,
+                }
+        return {}
+
     @override
     @callback
     def _handle_coordinator_update(self) -> None:
