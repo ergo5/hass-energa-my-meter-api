@@ -80,69 +80,88 @@ class EnergaAPI:
     async def async_get_hourly_statistics(self, meter_point_id: str, days_back: int = 2):
         """Fetch hourly statistics for last N days in StatisticData format.
         
+        Uses anchor-based backward calculation:
+        1. Get current total meter readings as anchors
+        2. Collect hourly data for all days
+        3. Work backwards from anchor subtracting hourly values
+        
         Args:
             meter_point_id: Meter ID to fetch data for
             days_back: Number of days to fetch (default 2 = 48 hours)
             
         Returns:
             dict with "import" and "export" keys containing lists of StatisticData dicts
-            Each StatisticData dict has:
-                - "start": datetime object (hour start time in Europe/Warsaw)
-                - "sum": float (cumulative kWh at that hour)
         """
         from datetime import timedelta
         
         tz = ZoneInfo("Europe/Warsaw")
         now = datetime.now(tz)
         
-        result = {"import": [], "export": []}
+        # Get current meter data to use as anchors
+        meter = next((m for m in self._meters_data if m["meter_point_id"] == meter_point_id), None)
+        if not meter:
+            _LOGGER.warning("Meter %s not found for statistics", meter_point_id)
+            return {"import": [], "export": []}
         
-        # Fetch data for each day in range
-        for day_offset in range(days_back):
+        anchor_import = float(meter.get("total_plus", 0) or 0)
+        anchor_export = float(meter.get("total_minus", 0) or 0)
+        
+        _LOGGER.debug("Statistics anchors for %s: Import=%.3f, Export=%.3f", 
+                     meter_point_id, anchor_import, anchor_export)
+        
+        # Collect all hourly data points (newest to oldest for backward calc)
+        all_points = {"import": [], "export": []}
+        
+        for day_offset in range(days_back):  # 0=today, 1=yesterday, etc.
             target_date = now - timedelta(days=day_offset)
             day_data = await self.async_get_history_hourly(meter_point_id, target_date)
             
-            # Convert hourly values to cumulative sums (StatisticData format)
-            # Energa API returns hourly consumption values, we need cumulative
+            day_start = target_date.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(tz)
             
-            if day_data.get("import"):
-                hourly_import = day_data["import"]
-                # Build cumulative sum from hourly values
-                cumulative = 0.0
-                for hour_idx, hourly_value in enumerate(hourly_import):
-                    cumulative += hourly_value
-                    hour_start = target_date.replace(
-                        hour=hour_idx, minute=0, second=0, microsecond=0
-                    ).astimezone(tz)
-                    
-                    result["import"].append({
-                        "start": hour_start,
-                        "sum": cumulative
-                    })
+            # Process import hours
+            for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
+                if hourly_value and hourly_value > 0:
+                    hour_dt = day_start + timedelta(hours=hour_idx + 1)
+                    all_points["import"].append({"dt": hour_dt, "value": hourly_value})
             
-            if day_data.get("export"):
-                hourly_export = day_data["export"]
-                cumulative = 0.0
-                for hour_idx, hourly_value in enumerate(hourly_export):
-                    cumulative += hourly_value
-                    hour_start = target_date.replace(
-                        hour=hour_idx, minute=0, second=0, microsecond=0
-                    ).astimezone(tz)
-                    
-                    result["export"].append({
-                        "start": hour_start,
-                        "sum": cumulative
-                    })
+            # Process export hours
+            for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
+                if hourly_value and hourly_value > 0:
+                    hour_dt = day_start + timedelta(hours=hour_idx + 1)
+                    all_points["export"].append({"dt": hour_dt, "value": hourly_value})
         
-        # Sort by timestamp (oldest first) for proper statistics import
-        if result["import"]:
-            result["import"] = sorted(result["import"], key=lambda x: x["start"])
-        if result["export"]:
-            result["export"] = sorted(result["export"], key=lambda x: x["start"])
+        result = {"import": [], "export": []}
+        
+        # Build import statistics (backward from anchor)
+        if all_points["import"] and anchor_import > 0:
+            all_points["import"].sort(key=lambda x: x["dt"], reverse=True)  # Newest first
+            running_sum = anchor_import
+            for point in all_points["import"]:
+                result["import"].append({
+                    "start": point["dt"],
+                    "sum": running_sum,
+                    "state": point["value"]
+                })
+                running_sum -= point["value"]
+            result["import"].sort(key=lambda x: x["start"])  # Sort oldest first for import
+        
+        # Build export statistics (backward from anchor)
+        if all_points["export"] and anchor_export > 0:
+            all_points["export"].sort(key=lambda x: x["dt"], reverse=True)  # Newest first
+            running_sum = anchor_export
+            for point in all_points["export"]:
+                result["export"].append({
+                    "start": point["dt"],
+                    "sum": running_sum,
+                    "state": point["value"]
+                })
+                running_sum -= point["value"]
+            result["export"].sort(key=lambda x: x["start"])  # Sort oldest first for import
         
         _LOGGER.debug(
-            f"Hourly statistics for {meter_point_id} (last {days_back} days): "
-            f"Import={len(result['import'])} points, Export={len(result['export'])} points"
+            "Hourly statistics for %s (last %d days): Import=%d points, Export=%d points",
+            meter_point_id, days_back,
+            len(result["import"]), len(result["export"])
         )
         
         return result

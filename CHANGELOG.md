@@ -1,15 +1,31 @@
 # Changelog
 
-## v3.6.0-beta.21 (2025-12-21)
-*   **CRITICAL FIX:** Reverted the "Source Switch" introduced in beta.19/20.
-*   **Problem:** Mapping main sensors to daily chart data (which resets at midnight) violated Home Assistant's `TOTAL_INCREASING` semantics, causing massive negative spikes in the Energy Dashboard.
-*   **Solution:** Main sensors (`import_total`, `export_total`) now correctly use lifetime counter data (`total_plus`, `total_minus`) again.
-*   **For Users on beta.19/20:** Use the provided `repair_midnight_spike.py` script to clean up corrupted statistics, then upgrade to beta.21.
-*   **Note:** Daily sensors (`daily_pobor`, `daily_produkcja`) remain available for users who need real-time daily data views.
+## v4.0.2 (2025-12-22) - STABLE RELEASE
 
-## v3.6.0-beta.20 (2025-12-20)
-*   **Improvement:** Implemented Dynamic Versioning. `sensor.py` no longer contains a hardcoded version string; it now fetches the version directly from `manifest.json`. This ensures Device Info in Home Assistant always reflects the installed version.
-*   **Maintenance:** Removed redundant imports and cleaned up code.
+**This is a complete rewrite of the integration (Clean Rebuild).**
 
-## v3.6.0-beta.19 (2025-12-20)
-*   **DEPRECATED - DO NOT USE:** This version contained a flawed "Source Switch" that caused midnight reset spikes. Update to beta.21 immediately.
+### 🚀 Key Changes
+*   **Architecture:** Simplified sensor logic. Split into "Live Sensors" (for viewing current data) and "Statistics Sensors" (invisible, strictly for Energy Dashboard).
+*   **Statistics Repair:** Implemented "Anchor-Based Backward Calculation". Statistics are now calculated by taking the *current* meter reading and subtracting hourly values backwards. This guarantees that **cumulative sums in Home Assistant always match the physical meter reading**, eliminating "negative spikes" and data corruption.
+*   **Self-Healing:** The "Download History" (Pobierz Historię) tool now acts as a **repair mechanism**. If your Energy Dashboard shows incorrect spikes, running "Download History" will overwrite the bad data with correctly calculated statistics.
+
+### ✨ New Features
+*   **6 Sensors:** 
+    *   `Import Total` & `Export Total` (Live readings)
+    *   `Daily Import` & `Daily Export` (Live daily counters)
+    *   `Panel Energia Import` & `Panel Energia Export` (Invisible, for Dashboard only)
+*   **Options Flow:** Configure credentials and run history import directly from Integration Settings.
+
+### 🐛 Bug Fixes
+*   Fixed critical bug where `api.py` was generating cumulative sums starting from 0, causing massive spikes when compared to lifetime totals.
+*   Fixed `AwesomeVersion` comparison error.
+*   Fixed "Unknown" state for live sensors by adding proper `SensorEntity` inheritance.
+
+### 🧹 Cleanup
+*   Removed all beta simulation scripts and legacy debug tools.
+*   Removed complex "source switching" logic - v4.0 uses a single, robust source of truth.
+
+---
+
+## v3.x Legacy
+*   Archived. Please upgrade to v4.0.2 and run "Download History" to clean up your database.

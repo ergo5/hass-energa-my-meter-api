@@ -6,12 +6,12 @@
 
 <p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Badge"></a>
-  <img src="https://img.shields.io/badge/version-v3.6.0--beta.7-blue" alt="Version Badge">
+  <img src="https://img.shields.io/badge/version-v4.0.2-green" alt="Version Badge">
 </p>
 
 <p align="center">
   A robust integration for <strong>Energa Operator</strong> in Home Assistant. It downloads data from the "Mój Licznik" service (Energa Operator) and integrates seamlessly with the **Energy Dashboard**.
-  Features **stable history import** and database resilience.
+  Features **self-healing history import** and correct cumulative statistics.
 </p>
 
 ---
@@ -19,11 +19,11 @@
 <h2 id="key-features">✨ Key Features</h2>
 
 <ul>
-    <li><strong>📊 Energy Dashboard Ready:</strong> Dedicated sensors with clear names (`(Panel Energia)`) designed specifically for correct statistics.</li>
-    <li><strong>🛡️ Database Resilience:</strong> Uses unique entity IDs to preventing history corruption.</li>
-    <li><strong>⚡ Hourly Granularity:</strong> Calculates consumption from hourly charts for precise tracking.</li>
-    <li><strong>🔍 OBIS Auto-Detect:</strong> Automatically identifies Import (1.8.0) and Export (2.8.0) registers.</li>
-    <li><strong>📈 History Backfill:</strong> Allows importing historical data (up to 30-60 days) to fill gaps in the Energy Dashboard without creating data spikes.</li>
+    <li><strong>📊 Energy Dashboard Ready:</strong> Dedicated sensors (`Panel Energia`) designed specifically for correct statistics.</li>
+    <li><strong>🛡️ Anchor-Based Statistics:</strong> Calculates history backwards from the current meter reading to guarantee perfect data continuity.</li>
+    <li><strong>⚡ Hourly Granularity:</strong> Precise hourly consumption/production tracking.</li>
+    <li><strong>🛠️ Auto-Repair (Self-Healing):</strong> The "Download History" feature automatically fixes gaps and corrupted data.</li>
+    <li><strong>🔍 OBIS Auto-Detect:</strong> automatically identifies usage (1.8.0) and production (2.8.0).</li>
 </ul>
 
 ---
@@ -38,13 +38,6 @@
     <li>Install <strong>Energa Mobile Integration</strong> and restart Home Assistant.</li>
 </ol>
 
-<h3>Option 2: Manual</h3>
-<ol>
-    <li>Download <code>energa_mobile</code> folder from the release.</li>
-    <li>Copy to <code>/config/custom_components</code>.</li>
-    <li>Restart Home Assistant.</li>
-</ol>
-
 <h3>Configuration</h3>
 <ol>
     <li>Go to <strong>Settings</strong> -> <strong>Devices & Services</strong>.</li>
@@ -56,7 +49,7 @@
 
 <h2 id="energy-dashboard">📊 Energy Dashboard Setup (Konfiguracja Panelu Energia)</h2>
 
-<p>To see correctly calculated statistics in the Energy Dashboard, you MUST select the specific sensors labeled with <strong>"(Panel Energia)"</strong>. These are separate from the daily counters.</p>
+<p>To see correctly calculated statistics in the Energy Dashboard, you MUST select the specific sensors labeled with <strong>"(Panel Energia)"</strong>.</p>
 
 <table>
     <thead>
@@ -85,42 +78,29 @@
 
 ---
 
-<h2 id="import-history">📅 History Import (Backfill)</h2>
+<h2 id="import-history">📅 History Import & Repair (Naprawa Historii)</h2>
 
-<p>If you want to view past data (from before you installed the integration):</p>
+<p>Use this feature if you have missing data OR if you see incorrect spikes in your Energy Dashboard.</p>
 
 <ol>
     <li>Go to <strong>Settings</strong> -> <strong>Devices & Services</strong> -> <strong>Energa Mobile</strong> -> <strong>Configure</strong>.</li>
-    <li>Select **"Pobierz Historię" (Download History)**.</li>
+    <li>Select **"Pobierz Historię Danych"**.</li>
     <li>Choose a **Start Date** (e.g., 30 days ago).</li>
     <li>Click **Submit**.</li>
 </ol>
 
-<p><em>The process happens in the background. Data will appear in the Energy Dashboard after Home Assistant processes the statistics (usually 15-60 minutes).</em></p>
+<p><strong>How it works:</strong> The integration will download fresh data from Energa and calculate clean, continuous statistics based on your current meter reading. This effectively <strong>overwrites</strong> any corrupted historical data in Home Assistant.</p>
+
+<p><em>The process happens in the background. Check logs for progress.</em></p>
 
 ---
 
 <h2 id="troubleshooting">🐛 Troubleshooting</h2>
 
 <ul>
-    <li><strong>Sensors "Panel Energia" missing?</strong> Check the **Diagnostic** section of your device in Home Assistant (Settings -> Devices -> Energa). They might be grouped there to keep the main view clean.</li>
+    <li><strong>Sensors "Panel Energia" missing?</strong> Check the **Diagnostic** entities section or enable "Show disabled entities".</li>
     <li><strong>Data Not Appearing?</strong> Ensure you selected the correct `(Panel Energia)` sensors in the Dashboard.</li>
 </ul>
 
 <h3>Disclaimer</h3>
 <p>This is a custom integration and is not affiliated with Energa Operator. Use at your own risk.</p>
-
----
-
-<h2 id="fixing-spikes">🛠️ Fixing Data Spikes (Cleaning Old Statistics)</h2>
-
-<p>If you are upgrading from an older version and see a massive data spike (e.g., 25,000 kWh in one hour), follow these steps to reset the statistics before running a new import:</p>
-
-<ol>
-    <li>Go to <strong>Developer Tools</strong> -> <strong>Statistics</strong>.</li>
-    <li>Search for <code>Energa Import (Panel Energia)</code>.</li>
-    <li>Click the <strong>Fix Issue</strong> icon (if present) or finding the entity in the list.</li>
-    <li>Click the <strong>trash bin icon</strong> (Clear) next to the entity to remove corrupted statistics.</li>
-    <li>Repeat for <code>Energa Export (Panel Energia)</code>.</li>
-    <li>After clearing, go to the integration configuration and run <strong>Download History</strong> again. The new Smart Import will fill the gap correctly.</li>
-</ol>
