@@ -11,6 +11,6 @@
   "codeowners": [
     "@ergo5"
   ],
-  "version": "4.0.4",
+  "version": "4.0.5",
   "config_flow": true
 }
