@@ -2,10 +2,15 @@
   "name": "Energa Mobile API",
   "domain": "energa_mobile",
   "render_readme": true,
-  "country": ["PL", "GB"],
+  "country": [
+    "PL",
+    "GB"
+  ],
   "documentation": "https://github.com/ergo5/hass-energa-my-meter-api",
   "requirements": [],
-  "codeowners": ["@ergo5"],
-  "version": "2.1.0",
+  "codeowners": [
+    "@ergo5"
+  ],
+  "version": "4.0.2",
   "config_flow": true
 }
