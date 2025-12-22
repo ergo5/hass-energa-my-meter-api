@@ -41,8 +41,8 @@ To see correctly calculated statistics in the Energy Dashboard, you MUST select 
 
 | Dashboard Section | Correct Sensor Name | Description |
 | :--- | :--- | :--- |
-| **Grid Consumption** (Pobór z sieci) | **Energa Import (Panel Energia)** | Specially configured for HA Statistics. Do not confuse with "Daily". |
-| **Return to Grid** (Oddawanie do sieci) | **Energa Export (Panel Energia)** | Specially configured for HA Statistics. |
+| **Grid Consumption** (Pobór z sieci) | **Energa [Twój ID] Panel Energia Zużycie** | Specially configured for HA Statistics. Do not confuse with "Daily". |
+| **Return to Grid** (Oddawanie do sieci) | **Energa [Twój ID] Panel Energia Produkcja** | Specially configured for HA Statistics. |
 
 > [!TIP]
 > Do NOT use `Energa Pobór Dziś` or `Stan Licznika` for the Energy Dashboard. Only use the ones marked **(Panel Energia)**.
