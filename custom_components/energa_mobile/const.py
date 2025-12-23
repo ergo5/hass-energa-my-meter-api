@@ -3,6 +3,7 @@
 DOMAIN = "energa_mobile"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
+CONF_DEVICE_TOKEN = "device_token"
 
 # API endpoints
 BASE_URL = "https://api-mojlicznik.energa-operator.pl/dp"

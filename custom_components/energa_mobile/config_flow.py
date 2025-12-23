@@ -1,5 +1,6 @@
 """Config flow for Energa Mobile integration v4.0."""
 import logging
+import secrets
 import voluptuous as vol
 from datetime import datetime
 from homeassistant import config_entries
@@ -7,7 +8,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
 from .api import EnergaAPI, EnergaAuthError
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_TOKEN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,14 +29,21 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             session = async_get_clientsession(self.hass)
-            api = EnergaAPI(user_input[CONF_USERNAME], user_input[CONF_PASSWORD], session)
+            # Generate unique device token for this installation
+            device_token = secrets.token_hex(32)
+            api = EnergaAPI(user_input[CONF_USERNAME], user_input[CONF_PASSWORD], device_token, session)
             try:
                 await api.async_login()
                 await self.async_set_unique_id(user_input[CONF_USERNAME])
                 self._abort_if_unique_id_configured()
+                # Store device token along with credentials
+                entry_data = {
+                    **user_input,
+                    CONF_DEVICE_TOKEN: device_token,
+                }
                 return self.async_create_entry(
                     title=user_input[CONF_USERNAME],
-                    data=user_input,
+                    data=entry_data,
                 )
             except EnergaAuthError:
                 errors["base"] = "invalid_auth"
@@ -65,12 +73,14 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             session = async_get_clientsession(self.hass)
             username = self.reauth_entry.data[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
-            api = EnergaAPI(username, password, session)
+            # Preserve existing device token or generate new one
+            device_token = self.reauth_entry.data.get(CONF_DEVICE_TOKEN) or secrets.token_hex(32)
+            api = EnergaAPI(username, password, device_token, session)
             try:
                 await api.async_login()
                 self.hass.config_entries.async_update_entry(
                     self.reauth_entry,
-                    data={CONF_USERNAME: username, CONF_PASSWORD: password},
+                    data={CONF_USERNAME: username, CONF_PASSWORD: password, CONF_DEVICE_TOKEN: device_token},
                 )
                 await self.hass.config_entries.async_reload(self.reauth_entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
@@ -108,12 +118,19 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         errors = {}
         if user_input is not None:
             session = async_get_clientsession(self.hass)
-            api = EnergaAPI(user_input[CONF_USERNAME], user_input[CONF_PASSWORD], session)
+            # Preserve existing device token or generate new one
+            device_token = self._config_entry.data.get(CONF_DEVICE_TOKEN) or secrets.token_hex(32)
+            api = EnergaAPI(user_input[CONF_USERNAME], user_input[CONF_PASSWORD], device_token, session)
             try:
                 await api.async_login()
+                # Preserve device token in updated entry data
+                entry_data = {
+                    **user_input,
+                    CONF_DEVICE_TOKEN: device_token,
+                }
                 self.hass.config_entries.async_update_entry(
                     self._config_entry,
-                    data=user_input,
+                    data=entry_data,
                 )
                 await self.hass.config_entries.async_reload(self._config_entry.entry_id)
                 return self.async_create_entry(title="", data={})

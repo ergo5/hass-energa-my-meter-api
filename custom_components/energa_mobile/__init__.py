@@ -21,7 +21,7 @@ from homeassistant.components.recorder.models import StatisticData, StatisticMet
 from homeassistant.components import persistent_notification
 
 from .api import EnergaAPI, EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_TOKEN
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
@@ -31,7 +31,11 @@ TIMEZONE = ZoneInfo("Europe/Warsaw")
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Energa Mobile from config entry."""
     session = async_get_clientsession(hass)
-    api = EnergaAPI(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD], session)
+    
+    # Get device token from config (may not exist in old installations)
+    import secrets
+    device_token = entry.data.get(CONF_DEVICE_TOKEN) or secrets.token_hex(32)
+    api = EnergaAPI(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD], device_token, session)
 
     # Login to API
     try:

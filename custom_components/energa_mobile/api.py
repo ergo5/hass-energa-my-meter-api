@@ -1,6 +1,7 @@
 """API interface for Energa Mobile v3.7.0-dev."""
 import logging
 import aiohttp
+import secrets
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from .const import BASE_URL, LOGIN_ENDPOINT, SESSION_ENDPOINT, DATA_ENDPOINT, CHART_ENDPOINT, HEADERS
@@ -12,11 +13,12 @@ class EnergaConnectionError(Exception): pass
 class EnergaTokenExpiredError(Exception): pass # <-- DODANY WYJĄTEK
 
 class EnergaAPI:
-    def __init__(self, username, password, session: aiohttp.ClientSession):
+    def __init__(self, username, password, device_token: str, session: aiohttp.ClientSession):
         self._username = username
         self._password = password
+        self._device_token = device_token  # Unique per-installation token
         self._session = session
-        self._token = None
+        self._token = None  # Server-returned token (may be empty in newer API)
         self._meters_data = []
 
     async def async_login(self) -> bool:
@@ -27,7 +29,8 @@ class EnergaAPI:
             _LOGGER.debug("Cleared session cookies, attempting fresh login")
             
             await self._api_get(SESSION_ENDPOINT)
-            params = {"clientOS": "ios", "notifyService": "APNs", "username": self._username, "password": self._password}
+            # Use persistent device token from config (generated during installation)
+            params = {"clientOS": "ios", "notifyService": "APNs", "username": self._username, "password": self._password, "token": self._device_token}
             async with self._session.get(f"{BASE_URL}{LOGIN_ENDPOINT}", headers=HEADERS, params=params, ssl=False) as resp:
                 if resp.status != 200: raise EnergaConnectionError(f"Login HTTP {resp.status}")
                 try: data = await resp.json()
