@@ -21,6 +21,11 @@ class EnergaAPI:
 
     async def async_login(self) -> bool:
         try:
+            # Clear old cookies/session state before re-login
+            self._session.cookie_jar.clear()
+            self._token = None
+            _LOGGER.debug("Cleared session cookies, attempting fresh login")
+            
             await self._api_get(SESSION_ENDPOINT)
             params = {"clientOS": "ios", "notifyService": "APNs", "username": self._username, "password": self._password}
             async with self._session.get(f"{BASE_URL}{LOGIN_ENDPOINT}", headers=HEADERS, params=params, ssl=False) as resp:
@@ -31,9 +36,11 @@ class EnergaAPI:
                 
                 # Token might be missing in newer API versions; session cookies are sufficient
                 self._token = data.get("token") or (data.get("response") or {}).get("token")
-                _LOGGER.info(f"Login successful. Token received: {bool(self._token)}")
+                _LOGGER.info(f"Login successful. Token received: {bool(self._token)}, Cookies: {len(self._session.cookie_jar)}")
                 return True
-        except aiohttp.ClientError as err: raise EnergaConnectionError from err
+        except aiohttp.ClientError as err: 
+            _LOGGER.error(f"Login network error: {err}")
+            raise EnergaConnectionError from err
 
     async def async_get_data(self, force_refresh: bool = False) -> list[dict]:
         if force_refresh: self._meters_data = []

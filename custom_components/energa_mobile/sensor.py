@@ -208,12 +208,13 @@ class EnergaCoordinator(DataUpdateCoordinator):
                 else:
                     _LOGGER.debug("Skipping meter %s - no valid data", meter_id)
             
-            # Fetch hourly statistics for active meters
             for meter in active_meters:
                 meter_id = meter["meter_point_id"]
                 try:
                     stats = await self.api.async_get_hourly_statistics(meter_id, days_back=2)
                     self._hourly_stats[meter_id] = stats
+                except EnergaTokenExpiredError:
+                    raise  # Propagate to outer handler for re-login
                 except Exception as err:
                     _LOGGER.warning("Failed to fetch hourly stats for %s: %s", meter_id, err)
                     self._hourly_stats[meter_id] = {"import": [], "export": []}
