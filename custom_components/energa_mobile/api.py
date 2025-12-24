@@ -182,11 +182,26 @@ class EnergaAPI:
         
         meters_found = []
         for mp in data["response"].get("meterPoints", []):
+            # Original v4.0.9 logic: find matching top-level agreementPoint
             ag = next((a for a in data["response"].get("agreementPoints", []) if a.get("id") == mp.get("id")), {})
-            if not ag and data["response"].get("agreementPoints"): ag = data["response"]["agreementPoints"][0]
+            if not ag and data["response"].get("agreementPoints"): 
+                ag = data["response"]["agreementPoints"][0]
             
-            ppe = ag.get("code") or mp.get("ppe") or mp.get("dev") or "Unknown"
+            # Check nested agreementPoints for PPE if not in top-level
+            nested_ag = mp.get("agreementPoints", [])
+            if nested_ag and nested_ag[0].get("code"):
+                ppe = nested_ag[0].get("code")
+            else:
+                ppe = ag.get("code") or mp.get("ppe") or mp.get("dev") or "Unknown"
+            
             serial = mp.get("dev") or mp.get("meterNumber") or "Unknown"
+            
+            # Address: from agreement, or use meter name as fallback
+            address = ag.get("address")
+            if not address and mp.get("name") and mp.get("name") != serial:
+                address = mp.get("name")
+            
+            # Contract date from top-level agreement (dealer.start)
             c_date = None
             try:
                 start_ts = ag.get("dealer", {}).get("start")
@@ -195,7 +210,7 @@ class EnergaAPI:
             
             meter_obj = {
                 "meter_point_id": mp.get("id"), "ppe": ppe, "meter_serial": serial, "tariff": mp.get("tariff"), 
-                "address": ag.get("address"), "contract_date": c_date, "daily_pobor": None, "daily_produkcja": None, 
+                "address": address, "contract_date": c_date, "daily_pobor": None, "daily_produkcja": None, 
                 "total_plus": None, "total_minus": None, "obis_plus": None, "obis_minus": None
             }
             

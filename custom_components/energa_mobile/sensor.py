@@ -8,7 +8,7 @@ import logging
 from typing import override
 from zoneinfo import ZoneInfo
 
-from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
+from homeassistant.components.recorder.models import StatisticData, StatisticMetaData, StatisticMeanType
 from homeassistant.components.recorder.statistics import async_import_statistics, get_last_statistics
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -158,6 +158,7 @@ async def async_setup_entry(
             ("tariff", "Taryfa", "mdi:cash-multiple", None),
             ("ppe", "PPE", "mdi:identifier", None),
             ("meter_serial", "Numer Licznika", "mdi:counter", None),
+            ("contract_date", "Data Aktywacji", "mdi:calendar", None),
         ]
 
         for key, name, icon, device_class in info_types:
@@ -428,6 +429,7 @@ class EnergaStatisticsSensor(CoordinatorEntity):
             unit_of_measurement=self._attr_native_unit_of_measurement,
             has_mean=False,
             has_sum=True,
+            mean_type=StatisticMeanType.NONE,  # Required since HA 2026.11
         )
         
         # Import statistics
@@ -438,8 +440,6 @@ class EnergaStatisticsSensor(CoordinatorEntity):
             statistics_data[0]["start"] if statistics_data else "N/A",
             statistics_data[-1]["start"] if statistics_data else "N/A",
         )
-        
-        async_import_statistics(self.hass, metadata, statistics_data)
         
         async_import_statistics(self.hass, metadata, statistics_data)
         

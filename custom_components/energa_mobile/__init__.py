@@ -17,7 +17,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.components.recorder.statistics import async_import_statistics
-from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
+from homeassistant.components.recorder.models import StatisticData, StatisticMetaData, StatisticMeanType
 from homeassistant.components import persistent_notification
 
 from .api import EnergaAPI, EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
@@ -151,8 +151,8 @@ async def _import_meter_history(
 
     try:
         # Get current meter readings as anchor
-        anchor_import = float(meter.get("total_plus", 0))
-        anchor_export = float(meter.get("total_minus", 0))
+        anchor_import = float(meter.get("total_plus") or 0)
+        anchor_export = float(meter.get("total_minus") or 0)
 
         if anchor_import <= 0:
             _LOGGER.error("Invalid anchor for import (total_plus=0)")
@@ -245,6 +245,7 @@ async def _import_meter_history(
                 unit_of_measurement="kWh",
                 has_mean=False,
                 has_sum=True,
+                mean_type=StatisticMeanType.NONE,  # Required since HA 2026.11
             )
 
             async_import_statistics(hass, metadata, statistics)
