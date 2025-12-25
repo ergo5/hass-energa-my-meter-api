@@ -72,8 +72,29 @@ Use this feature if you have missing data OR if you see incorrect spikes in your
 
 ## 🐛 Troubleshooting
 
-*   **Sensors "Panel Energia" missing?** Check the **Diagnostic** entities section or enable "Show disabled entities".
-*   **Data Not Appearing?** Ensure you selected the correct `(Panel Energia)` sensors in the Dashboard.
+### "Token expired" / Authentication Issues
+
+If you see errors like "Token expired, attempting re-login" or frequent authentication failures:
+
+**Solution:** Remove and re-add the integration
+1. Go to **Settings** → **Devices & Services** → **Energa Mobile**
+2. Click the **3 dots** → **Delete**
+3. Add the integration again with your credentials
+
+**Why this helps:** Older versions didn't save the device token properly. Removing and re-adding saves a persistent token that prevents authentication conflicts.
+
+### Sensors "Panel Energia" Missing?
+
+- Check the **Diagnostic** entities section
+- Enable "Show disabled entities" in entity list
+
+### Data Not Appearing in Energy Dashboard?
+
+Ensure you selected the correct `(Panel Energia)` sensors, not the "Daily" or "State" sensors.
+
+### About "Data Aktywacji" Sensor
+
+This sensor shows the **activation date of the Mój Licznik mobile app**, not the contract signing date. It's only available for prosumer (producer-consumer) accounts and may not appear for regular consumer accounts.
 
 ### Disclaimer
 This is a custom integration and is not affiliated with Energa Operator. Use at your own risk.
