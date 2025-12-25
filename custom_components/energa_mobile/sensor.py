@@ -63,12 +63,19 @@ async def async_setup_entry(
         _LOGGER.warning("Energa: Initial fetch failed, will retry: %s", err)
 
     if not coordinator.data:
-        _LOGGER.warning("No meter data available at startup")
-        return
+        _LOGGER.warning(
+            "No meter data available at startup -sensors will be created but unavailable until first update"
+        )
+        # return  # REMOVED: Don't block sensor creation!
 
     # Create sensors for each meter
     sensors = []
-    for meter in coordinator.data:
+    meters_to_process = coordinator.data if coordinator.data else []
+    _LOGGER.debug(
+        "Energa: Processing %d meters for sensor creation", len(meters_to_process)
+    )
+
+    for meter in meters_to_process:
         meter_id = meter["meter_point_id"]
         serial = meter.get("meter_serial", meter_id)
         ppe = meter.get("ppe", meter_id)
@@ -185,7 +192,14 @@ async def async_setup_entry(
                     )
                 )
 
-    _LOGGER.info("Created %d Energa sensors (4 live + 2 statistics)", len(sensors))
+    _LOGGER.info("Created %d Energa sensors", len(sensors))
+    _LOGGER.debug(
+        "Energa: Sensor list: %s",
+        [
+            s.entity_id if hasattr(s, "entity_id") else s._attr_unique_id
+            for s in sensors
+        ],
+    )
     async_add_entities(sensors, update_before_add=True)
 
 
