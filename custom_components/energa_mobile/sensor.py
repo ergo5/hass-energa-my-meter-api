@@ -59,21 +59,39 @@ async def async_setup_entry(
     # Initial data fetch
     try:
         await coordinator.async_config_entry_first_refresh()
+        _LOGGER.debug("Energa: Initial refresh successful")
     except Exception as err:
         _LOGGER.warning("Energa: Initial fetch failed, will retry: %s", err)
 
-    if not coordinator.data:
-        _LOGGER.warning(
-            "No meter data available at startup -sensors will be created but unavailable until first update"
+    # CRITICAL: Fetch meters directly from API to create sensors
+    # Don't rely on coordinator.data which may be empty at startup
+    try:
+        meters_list = await api.async_get_data(force_refresh=False)
+        _LOGGER.info(
+            "Energa: Fetched %d meters from API for sensor setup",
+            len(meters_list) if meters_list else 0,
         )
-        # return  # REMOVED: Don't block sensor creation!
+    except Exception as err:
+        _LOGGER.error("Energa: Failed to fetch meters for setup: %s", err)
+        meters_list = []
+
+    # Filter active meters (total_plus > 0)
+    meters_to_process = (
+        [
+            m
+            for m in meters_list
+            if m.get("total_plus") and float(m.get("total_plus", 0)) > 0
+        ]
+        if meters_list
+        else []
+    )
+
+    _LOGGER.info(
+        "Energa: Creating sensors for %d active meters", len(meters_to_process)
+    )
 
     # Create sensors for each meter
     sensors = []
-    meters_to_process = coordinator.data if coordinator.data else []
-    _LOGGER.debug(
-        "Energa: Processing %d meters for sensor creation", len(meters_to_process)
-    )
 
     for meter in meters_to_process:
         meter_id = meter["meter_point_id"]
