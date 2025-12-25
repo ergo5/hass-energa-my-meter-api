@@ -76,12 +76,19 @@ Use this feature if you have missing data OR if you see incorrect spikes in your
 
 If you see errors like "Token expired, attempting re-login" or frequent authentication failures:
 
-**Solution:** Remove and re-add the integration
-1. Go to **Settings** → **Devices & Services** → **Energa Mobile**
-2. Click the **3 dots** → **Delete**
-3. Add the integration again with your credentials
+**Solution:** Reinstall and re-add the integration
 
-**Why this helps:** Older versions didn't save the device token properly. Removing and re-adding saves a persistent token that prevents authentication conflicts.
+1. **Update to v4.1.0 or newer** (skip if already on latest):
+   - Open **HACS** → **Integrations** 
+   - Find **Energa Mobile** → Click **Update** (or **Redownload**)
+   - Restart Home Assistant
+
+2. **Remove and re-add configuration**:
+   - Go to **Settings** → **Devices & Services** → **Energa Mobile**
+   - Click the **3 dots** → **Delete**
+   - Add the integration again with your credentials
+
+**Why this helps:** Older versions (before v4.0.9) didn't save the device token properly. Step 1 gets you the fixed code, step 2 saves a persistent token that prevents authentication conflicts.
 
 ### Sensors "Panel Energia" Missing?
 
