@@ -5,7 +5,7 @@
 <h1 align="center">Energa Mobile Integration for Home Assistant</h1>
 
 
-![Version](https://img.shields.io/badge/version-v4.0.2-green)
+![Version](https://img.shields.io/badge/version-v4.1.0-green)
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
 A robust integration for **Energa Operator** in Home Assistant. It downloads data from the "Mój Licznik" service (Energa Operator) and integrates seamlessly with the **Energy Dashboard**. Features **self-healing history import** and correct cumulative statistics.
