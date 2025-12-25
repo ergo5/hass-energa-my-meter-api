@@ -511,8 +511,8 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
             "Importing %d statistics for %s (range: %s to %s)",
             len(statistics_data),
             self.entity_id,
-            statistics_data[0]["start"] if statistics_data else "N/A",
-            statistics_data[-1]["start"] if statistics_data else "N/A",
+            statistics_data[0].start if statistics_data else "N/A",
+            statistics_data[-1].start if statistics_data else "N/A",
         )
 
         async_import_statistics(self.hass, metadata, statistics_data)
