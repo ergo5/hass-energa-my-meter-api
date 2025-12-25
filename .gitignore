@@ -2,6 +2,12 @@
 *.iml
 .idea
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
 # Generated files
 .venv*
 .coverage
@@ -9,3 +15,13 @@
 reports
 *.egg-info
 .renovate-cache
+
+# Local development
+tools/get_logs.py
+tools/ssh_lab.py
+tools/ha_api_test.py
+tools/reload_integration.py
+logs_energa.txt
+temp_*.py
+last_comment.txt
+
