@@ -140,4 +140,27 @@ Możliwe przyczyny:
 
 - ⏰ **Zasada 24h**: testuj lokalnie przed publikacją
 - 🔍 **Konsument vs Prosument**: różne dane API
-- 📦 **v4.0.9**: wersja produkcyjna, działa
+- 📦 **v4.1.0**: wersja stabilna, multi-meter fix
+
+---
+
+## 📋 Przyszłe ulepszenia (Future Improvements)
+
+### Translations dla sensorów
+- **Problem**: Nazwy sensorów (np. "Data Aktywacji") są hardcoded w `sensor.py`
+- **Priorytet**: Niski (większość użytkowników to Polacy)
+- **Rozwiązanie**: 
+  - Dodać sensor name translations do `pl.json` i `en.json`
+  - Refactor `info_types` w `sensor.py` aby używać translation keys
+- **Uwaga**: Standard HA to hardcoded nazwy - wymaga research czy warto
+
+### Multi-meter adresy
+- **Status**: PPE działa poprawnie, adresy to "nice to have"
+- **Możliwe rozwiązanie**: Szukać adresu w nested agreementPoints (analogicznie jak PPE)
+- **Priorytet**: Niski - użytkownicy identyfikują liczniki po PPE
+
+### unit_class dla HA 2026.11
+- **Warning**: `unit_class not specified` w async_import_statistics
+- **Kiedy**: Stanie się wymagane w HA 2026.11
+- **Action**: Dodać `unit_class` do StatisticMetaData przed końcem 2026
+
