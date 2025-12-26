@@ -239,8 +239,28 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             if days < 1:
                 days = 1
 
-            # Get active meters
-            meters = await api.async_get_data()
+            # Get active meters - handle token expiry
+            try:
+                meters = await api.async_get_data()
+            except Exception as err:
+                # Token expired or other API error - try to re-login
+                from .api import EnergaAuthError, EnergaTokenExpiredError
+
+                if isinstance(err, (EnergaTokenExpiredError, EnergaAuthError)):
+                    try:
+                        await api.async_login()
+                        meters = await api.async_get_data()
+                    except Exception as login_err:
+                        return self.async_abort(
+                            reason="cannot_connect",
+                            description_placeholders={"error": str(login_err)},
+                        )
+                else:
+                    return self.async_abort(
+                        reason="cannot_connect",
+                        description_placeholders={"error": str(err)},
+                    )
+
             active_meters = [
                 m
                 for m in meters
