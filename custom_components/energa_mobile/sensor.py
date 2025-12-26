@@ -33,7 +33,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.loader import async_get_integration
 
 from .api import EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
-from .const import DOMAIN
+from .const import CONF_EXPORT_PRICE, CONF_IMPORT_PRICE, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,6 +171,7 @@ async def async_setup_entry(
                 data_key="import",
                 name="Panel Energia Zużycie",
                 device_info=device_info,
+                entry=entry,
             )
         )
 
@@ -183,6 +184,7 @@ async def async_setup_entry(
                     data_key="export",
                     name="Panel Energia Produkcja",
                     device_info=device_info,
+                    entry=entry,
                 )
             )
 
@@ -411,12 +413,14 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
         data_key: str,
         name: str,
         device_info: DeviceInfo,
+        entry: ConfigEntry,
     ) -> None:
         """Initialize statistics sensor."""
         super().__init__(coordinator)
 
         self._meter_id = meter_id
         self._data_key = data_key
+        self._entry = entry  # Store for price access
 
         # Entity attributes
         self._attr_name = name
@@ -465,7 +469,7 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
     @override
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Handle coordinator update - import statistics to recorder."""
+        """Handle coordinator update - import energy and cost statistics to recorder."""
         _LOGGER.debug("Updating statistics for %s", self.entity_id)
 
         # Get hourly data from coordinator
@@ -476,46 +480,91 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
             super()._handle_coordinator_update()
             return
 
-        # Build StatisticData list
-        statistics_data = []
+        # Get price from config options
+        if self._data_key == "import":
+            price = self._entry.options.get(CONF_IMPORT_PRICE, 1.188)
+        else:  # export
+            price = self._entry.options.get(CONF_EXPORT_PRICE, 0.95)
+
+        # Build StatisticData lists for energy AND cost
+        energy_stats = []
+        cost_stats = []
+        cost_sum = 0.0
+
         for point in hourly_stats:
             try:
-                statistics_data.append(
+                # Energy statistic
+                energy_stats.append(
                     StatisticData(
                         start=point["start"],
                         sum=point["sum"],
                         state=point.get("state", 0),
                     )
                 )
+
+                # Cost statistic (hourly cost = hourly energy × price)
+                hourly_energy = point.get("state", 0)
+                hourly_cost = hourly_energy * price
+                cost_sum += hourly_cost
+                cost_stats.append(
+                    StatisticData(
+                        start=point["start"],
+                        sum=cost_sum,
+                        state=hourly_cost,
+                    )
+                )
             except (KeyError, TypeError) as err:
                 _LOGGER.warning("Invalid stat point: %s", err)
                 continue
 
-        if not statistics_data:
+        if not energy_stats:
             super()._handle_coordinator_update()
             return
 
-        # Prepare metadata
-        metadata = StatisticMetaData(
+        # === IMPORT ENERGY STATISTICS ===
+        energy_metadata = StatisticMetaData(
             source="recorder",
             statistic_id=self.entity_id,
             name=self._attr_name,
             unit_of_measurement=self._attr_native_unit_of_measurement,
             has_mean=False,
             has_sum=True,
-            mean_type=StatisticMeanType.NONE,  # Required since HA 2026.11
+            mean_type=StatisticMeanType.NONE,
         )
 
-        # Import statistics
         _LOGGER.info(
-            "Importing %d statistics for %s (range: %s to %s)",
-            len(statistics_data),
+            "Importing %d energy statistics for %s",
+            len(energy_stats),
             self.entity_id,
-            statistics_data[0].start if statistics_data else "N/A",
-            statistics_data[-1].start if statistics_data else "N/A",
+        )
+        async_import_statistics(self.hass, energy_metadata, energy_stats)
+
+        # === IMPORT COST STATISTICS ===
+        cost_entity_id = f"{self.entity_id}_cost"
+        cost_name = (
+            f"{self._attr_name} Koszt"
+            if self._data_key == "import"
+            else f"{self._attr_name} Rekompensata"
         )
 
-        async_import_statistics(self.hass, metadata, statistics_data)
+        cost_metadata = StatisticMetaData(
+            source="recorder",
+            statistic_id=cost_entity_id,
+            name=cost_name,
+            unit_of_measurement="PLN",
+            has_mean=False,
+            has_sum=True,
+            mean_type=StatisticMeanType.NONE,
+        )
+
+        _LOGGER.info(
+            "Importing %d cost statistics for %s (price: %.3f PLN/kWh, total: %.2f PLN)",
+            len(cost_stats),
+            cost_entity_id,
+            price,
+            cost_sum,
+        )
+        async_import_statistics(self.hass, cost_metadata, cost_stats)
 
         # Call parent update
         super()._handle_coordinator_update()

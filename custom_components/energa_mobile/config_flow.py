@@ -1,14 +1,24 @@
 """Config flow for Energa Mobile integration v4.0."""
+
 import logging
 import secrets
-import voluptuous as vol
 from datetime import datetime
+
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
 from .api import EnergaAPI, EnergaAuthError
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_TOKEN
+from .const import (
+    CONF_DEVICE_TOKEN,
+    CONF_EXPORT_PRICE,
+    CONF_IMPORT_PRICE,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,7 +41,12 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             session = async_get_clientsession(self.hass)
             # Generate unique device token for this installation
             device_token = secrets.token_hex(32)
-            api = EnergaAPI(user_input[CONF_USERNAME], user_input[CONF_PASSWORD], device_token, session)
+            api = EnergaAPI(
+                user_input[CONF_USERNAME],
+                user_input[CONF_PASSWORD],
+                device_token,
+                session,
+            )
             try:
                 await api.async_login()
                 await self.async_set_unique_id(user_input[CONF_USERNAME])
@@ -52,10 +67,12 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(CONF_USERNAME): str,
-                vol.Required(CONF_PASSWORD): str,
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_USERNAME): str,
+                    vol.Required(CONF_PASSWORD): str,
+                }
+            ),
             errors=errors,
         )
 
@@ -74,13 +91,19 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             username = self.reauth_entry.data[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
             # Preserve existing device token or generate new one
-            device_token = self.reauth_entry.data.get(CONF_DEVICE_TOKEN) or secrets.token_hex(32)
+            device_token = self.reauth_entry.data.get(
+                CONF_DEVICE_TOKEN
+            ) or secrets.token_hex(32)
             api = EnergaAPI(username, password, device_token, session)
             try:
                 await api.async_login()
                 self.hass.config_entries.async_update_entry(
                     self.reauth_entry,
-                    data={CONF_USERNAME: username, CONF_PASSWORD: password, CONF_DEVICE_TOKEN: device_token},
+                    data={
+                        CONF_USERNAME: username,
+                        CONF_PASSWORD: password,
+                        CONF_DEVICE_TOKEN: device_token,
+                    },
                 )
                 await self.hass.config_entries.async_reload(self.reauth_entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
@@ -110,7 +133,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         """Show options menu."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["credentials", "history"],
+            menu_options=["credentials", "prices", "history", "reimport_stats"],
         )
 
     async def async_step_credentials(self, user_input=None):
@@ -119,8 +142,15 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             session = async_get_clientsession(self.hass)
             # Preserve existing device token or generate new one
-            device_token = self._config_entry.data.get(CONF_DEVICE_TOKEN) or secrets.token_hex(32)
-            api = EnergaAPI(user_input[CONF_USERNAME], user_input[CONF_PASSWORD], device_token, session)
+            device_token = self._config_entry.data.get(
+                CONF_DEVICE_TOKEN
+            ) or secrets.token_hex(32)
+            api = EnergaAPI(
+                user_input[CONF_USERNAME],
+                user_input[CONF_PASSWORD],
+                device_token,
+                session,
+            )
             try:
                 await api.async_login()
                 # Preserve device token in updated entry data
@@ -142,11 +172,48 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         current_user = self._config_entry.data.get(CONF_USERNAME)
         return self.async_show_form(
             step_id="credentials",
-            data_schema=vol.Schema({
-                vol.Required(CONF_USERNAME, default=current_user): str,
-                vol.Required(CONF_PASSWORD): str,
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_USERNAME, default=current_user): str,
+                    vol.Required(CONF_PASSWORD): str,
+                }
+            ),
             errors=errors,
+        )
+
+    async def async_step_prices(self, user_input=None):
+        """Handle energy price configuration."""
+        if user_input is not None:
+            # Store prices in options
+            new_options = {**self._config_entry.options, **user_input}
+            self.hass.config_entries.async_update_entry(
+                self._config_entry,
+                options=new_options,
+            )
+            # Reload integration to apply new prices
+            await self.hass.config_entries.async_reload(self._config_entry.entry_id)
+            return self.async_create_entry(title="", data={})
+
+        # Get current values from options
+        current_import = self._config_entry.options.get(CONF_IMPORT_PRICE, 1.188)
+        current_export = self._config_entry.options.get(CONF_EXPORT_PRICE, 0.95)
+
+        return self.async_show_form(
+            step_id="prices",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_IMPORT_PRICE, default=current_import): vol.Coerce(
+                        float
+                    ),
+                    vol.Required(CONF_EXPORT_PRICE, default=current_export): vol.Coerce(
+                        float
+                    ),
+                }
+            ),
+            description_placeholders={
+                "import_desc": "Cena za 1 kWh zużytej energii (PLN)",
+                "export_desc": "Stawka za 1 kWh oddanej energii (PLN)",
+            },
         )
 
     async def async_step_history(self, user_input=None):
@@ -175,21 +242,75 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             # Get active meters
             meters = await api.async_get_data()
             active_meters = [
-                m for m in meters
+                m
+                for m in meters
                 if m.get("total_plus") and float(m.get("total_plus", 0)) > 0
             ]
 
             # FIX: Pass full meter dict, not just ID
             for meter in active_meters:
                 self.hass.async_create_task(
-                    _import_meter_history(self.hass, api, meter, start_date, days)
+                    _import_meter_history(
+                        self.hass, api, meter, start_date, days, self._config_entry
+                    )
                 )
             return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
             step_id="history",
-            data_schema=vol.Schema({
-                vol.Required("start_date", default=default_date): selector.DateSelector(),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "start_date", default=default_date
+                    ): selector.DateSelector(),
+                }
+            ),
             description_placeholders={"contract_date": contract_str},
+        )
+
+    async def async_step_reimport_stats(self, user_input=None):
+        """Clear and reimport statistics with correct state_class."""
+        from homeassistant.components import recorder
+        from homeassistant.helpers import entity_registry as er
+
+        if user_input is not None:
+            # Get recorder instance
+            rec = recorder.get_instance(self.hass)
+
+            # Get all Energa statistics sensor IDs
+            entity_registry = er.async_get(self.hass)
+            statistic_ids = []
+
+            for entity in entity_registry.entities.values():
+                if (
+                    entity.platform == DOMAIN
+                    and (
+                        "energa_zuzycie" in entity.entity_id
+                        or "energa_produkcja" in entity.entity_id
+                    )
+                    and "_stats" in entity.unique_id
+                ):
+                    statistic_ids.append(entity.entity_id)
+
+            # Clear statistics for these sensors
+            if statistic_ids:
+                # async_clear_statistics is not a coroutine - don't await
+                rec.async_clear_statistics(statistic_ids)
+                _LOGGER.info(
+                    "Cleared statistics for %d sensors: %s",
+                    len(statistic_ids),
+                    statistic_ids,
+                )
+                # Note: Statistics will auto-reimport on next sensor update
+
+            return self.async_create_entry(
+                title="",
+                data={},
+            )
+
+        return self.async_show_form(
+            step_id="reimport_stats",
+            description_placeholders={
+                "warning": "To wyczyści i reimportuje wszystkie statystyki dla sensorów Energa. Zalecane po aktualizacji integracji."
+            },
         )

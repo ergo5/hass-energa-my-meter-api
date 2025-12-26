@@ -5,37 +5,59 @@ Clean rebuild with simplified architecture:
 - No self-healing (manual fetch_history service)
 - Active meter filtering
 """
+
 import asyncio
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import voluptuous as vol
+from homeassistant.components import persistent_notification
+from homeassistant.components.recorder.models import (
+    StatisticData,
+    StatisticMeanType,
+    StatisticMetaData,
+)
+from homeassistant.components.recorder.statistics import async_import_statistics
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers import entity_registry as er
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.components.recorder.statistics import async_import_statistics
-from homeassistant.components.recorder.models import StatisticData, StatisticMetaData, StatisticMeanType
-from homeassistant.components import persistent_notification
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
-from .api import EnergaAPI, EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_TOKEN
+from .api import (
+    EnergaAPI,
+    EnergaAuthError,
+    EnergaConnectionError,
+    EnergaTokenExpiredError,
+)
+from .const import (
+    CONF_DEVICE_TOKEN,
+    CONF_EXPORT_PRICE,
+    CONF_IMPORT_PRICE,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
 TIMEZONE = ZoneInfo("Europe/Warsaw")
+UTC = ZoneInfo("UTC")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Energa Mobile from config entry."""
     session = async_get_clientsession(hass)
-    
+
     # Get device token from config (may not exist in old installations)
     import secrets
+
     device_token = entry.data.get(CONF_DEVICE_TOKEN) or secrets.token_hex(32)
-    api = EnergaAPI(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD], device_token, session)
+    api = EnergaAPI(
+        entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD], device_token, session
+    )
 
     # Login to API
     try:
@@ -69,7 +91,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
         except ValueError:
-            _LOGGER.error("Invalid date format: %s (expected YYYY-MM-DD)", start_date_str)
+            _LOGGER.error(
+                "Invalid date format: %s (expected YYYY-MM-DD)", start_date_str
+            )
             persistent_notification.async_create(
                 hass,
                 f"Błędny format daty: {start_date_str}",
@@ -93,7 +117,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Filter active meters
         active_meters = [
-            m for m in meters 
+            m
+            for m in meters
             if m.get("total_plus") and float(m.get("total_plus", 0)) > 0
         ]
 
@@ -110,17 +135,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Process each active meter
         for meter in active_meters:
             hass.async_create_task(
-                _import_meter_history(hass, api, meter, start_date, days)
+                _import_meter_history(hass, api, meter, start_date, days, entry)
             )
 
     hass.services.async_register(
         DOMAIN,
         "fetch_history",
         fetch_history_service,
-        schema=vol.Schema({
-            vol.Required("start_date"): str,
-            vol.Optional("days", default=30): int,
-        }),
+        schema=vol.Schema(
+            {
+                vol.Required("start_date"): str,
+                vol.Optional("days", default=30): int,
+            }
+        ),
     )
 
     return True
@@ -132,13 +159,18 @@ async def _import_meter_history(
     meter: dict,
     start_date: datetime,
     days: int,
+    entry: ConfigEntry,
 ) -> None:
     """Import historical data for a single meter."""
     meter_id = meter["meter_point_id"]
     serial = meter.get("meter_serial", meter_id)
 
-    _LOGGER.info("Starting history import for meter %s (%d days from %s)", 
-                 serial, days, start_date.date())
+    _LOGGER.info(
+        "Starting history import for meter %s (%d days from %s)",
+        serial,
+        days,
+        start_date.date(),
+    )
 
     # Show start notification
     persistent_notification.async_create(
@@ -169,7 +201,9 @@ async def _import_meter_history(
         export_points = []
 
         for day_offset in range(days):
-            target_day = start_date + timedelta(days=day_offset)
+            target_day = (start_date + timedelta(days=day_offset)).replace(
+                tzinfo=TIMEZONE
+            )
             if target_day.date() > datetime.now().date():
                 break
 
@@ -182,62 +216,94 @@ async def _import_meter_history(
                 _LOGGER.warning("Failed to fetch day %s: %s", target_day.date(), err)
                 continue
 
-            day_start = target_day.replace(
-                hour=0, minute=0, second=0, microsecond=0,
-                tzinfo=TIMEZONE
-            )
+            day_start = target_day.replace(hour=0, minute=0, second=0, microsecond=0)
 
             # Process import data
             for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
                 if hourly_value and hourly_value >= 0:
-                    hour_dt = day_start + timedelta(hours=hour_idx + 1)
-                    import_points.append({
-                        "dt": hour_dt,
-                        "value": hourly_value,
-                    })
+                    hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx + 1))
+                    import_points.append(
+                        {
+                            "dt": hour_dt,
+                            "value": hourly_value,
+                        }
+                    )
 
             # Process export data
             for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
                 if hourly_value and hourly_value >= 0:
-                    hour_dt = day_start + timedelta(hours=hour_idx + 1)
-                    export_points.append({
-                        "dt": hour_dt,
-                        "value": hourly_value,
-                    })
+                    hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx + 1))
+                    export_points.append(
+                        {
+                            "dt": hour_dt,
+                            "value": hourly_value,
+                        }
+                    )
+
+        _LOGGER.info(
+            "Collected data for meter %s: %d import points, %d export points",
+            serial,
+            len(import_points),
+            len(export_points),
+        )
 
         # Build statistics with cumulative sums (working backwards from anchor)
-        def build_statistics(points: list, anchor: float, entity_suffix: str) -> int:
+        def build_statistics(
+            points: list, anchor: float, entity_suffix: str, entry: ConfigEntry
+        ) -> int:
             if not points or anchor <= 0:
                 return 0
 
+            # Get price from config options
+            if entity_suffix == "import":
+                price = entry.options.get(CONF_IMPORT_PRICE, 1.188)
+            else:  # export
+                price = entry.options.get(CONF_EXPORT_PRICE, 0.95)
+
             # Sort newest first for backward calculation
             points.sort(key=lambda x: x["dt"], reverse=True)
-            
+
             running_sum = anchor
             statistics = []
-            
+            cost_statistics = []
+
             for point in points:
                 statistics.append(
-                    StatisticData(
-                        start=point["dt"],
-                        sum=running_sum,
-                        state=point["value"],
-                    )
+                    {
+                        "start": point["dt"],
+                        "sum": running_sum,
+                        "state": point["value"],
+                    }
                 )
                 running_sum -= point["value"]
 
             # Sort oldest first for import
             statistics.sort(key=lambda x: x["start"])
 
-            # Find entity ID
-            ent_reg = er.async_get(hass)
-            uid = f"energa_{meter_id}_{entity_suffix}_stats"
-            entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, uid)
-            
-            if not entity_id:
-                entity_id = f"sensor.energa_{meter_id}_{entity_suffix}_stats"
+            # Build cost statistics (forward, cumulative)
+            cost_sum = 0.0
+            for stat in statistics:
+                hourly_energy = stat["state"] or 0
+                hourly_cost = hourly_energy * price
+                cost_sum += hourly_cost
+                cost_statistics.append(
+                    {
+                        "start": stat["start"],
+                        "sum": cost_sum,
+                        "state": hourly_cost,
+                    }
+                )
 
-            # Import statistics
+            # Use correct entity IDs that match Energy Dashboard
+            # Energy sensors are: sensor.energa_{meter_id}_energa_zuzycie / energa_produkcja
+            if entity_suffix == "import":
+                energy_sensor_name = "energa_zuzycie"
+            else:
+                energy_sensor_name = "energa_produkcja"
+
+            entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
+
+            # Import energy statistics
             metadata = StatisticMetaData(
                 source="recorder",
                 statistic_id=entity_id,
@@ -245,18 +311,47 @@ async def _import_meter_history(
                 unit_of_measurement="kWh",
                 has_mean=False,
                 has_sum=True,
-                mean_type=StatisticMeanType.NONE,  # Required since HA 2026.11
+                mean_type=StatisticMeanType.NONE,
             )
 
             async_import_statistics(hass, metadata, statistics)
-            _LOGGER.info("Imported %d statistics for %s", len(statistics), entity_id)
+            _LOGGER.info(
+                "Imported %d energy statistics for %s", len(statistics), entity_id
+            )
+
+            # Import cost statistics to matching cost sensor
+            cost_entity_id = f"{entity_id}_cost"
+            cost_name = (
+                "Panel Energia Zużycie Koszt"
+                if entity_suffix == "import"
+                else "Panel Energia Produkcja Rekompensata"
+            )
+
+            cost_metadata = StatisticMetaData(
+                source="recorder",
+                statistic_id=cost_entity_id,
+                name=cost_name,
+                unit_of_measurement="PLN",
+                has_mean=False,
+                has_sum=True,
+                mean_type=StatisticMeanType.NONE,
+            )
+
+            async_import_statistics(hass, cost_metadata, cost_statistics)
+            _LOGGER.info(
+                "Imported %d cost statistics for %s (price: %.3f PLN/kWh)",
+                len(cost_statistics),
+                cost_entity_id,
+                price,
+            )
+
             return len(statistics)
 
-        count_import = build_statistics(import_points, anchor_import, "import")
-        count_export = build_statistics(export_points, anchor_export, "export")
+        count_import = build_statistics(import_points, anchor_import, "import", entry)
+        count_export = build_statistics(export_points, anchor_export, "export", entry)
 
         total_count = count_import + count_export
-        
+
         # Show success notification
         persistent_notification.async_create(
             hass,

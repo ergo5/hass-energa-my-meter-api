@@ -32,7 +32,9 @@
             "init": {
                 "menu_options": {
                     "credentials": "Zmień Login/Hasło",
-                    "history": "Pobierz Historię Danych"
+                    "prices": "Ustaw Ceny Energii",
+                    "history": "Pobierz Historię Danych",
+                    "reimport_stats": "Reimportuj Statystyki"
                 }
             },
             "credentials": {
@@ -42,12 +44,24 @@
                     "password": "Nowe hasło"
                 }
             },
+            "prices": {
+                "title": "Ceny Energii",
+                "description": "Ustaw ceny energii do kalkulacji kosztów w Panelu Energia.",
+                "data": {
+                    "import_price": "Cena za kWh (zużycie) [PLN]",
+                    "export_price": "Stawka za kWh (produkcja) [PLN]"
+                }
+            },
             "history": {
                 "title": "Pobieranie Historii",
                 "description": "**Data umowy:** {contract_date}\n\nWybierz datę początkową. Integracja pobierze dane godzinowe w tle dla wszystkich liczników.",
                 "data": {
                     "start_date": "Data początkowa"
                 }
+            },
+            "reimport_stats": {
+                "title": "Reimport Statystyk",
+                "description": "{warning}\n\nCzy chcesz kontynuować?"
             }
         }
     }

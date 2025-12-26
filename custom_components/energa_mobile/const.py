@@ -4,6 +4,8 @@ DOMAIN = "energa_mobile"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_DEVICE_TOKEN = "device_token"
+CONF_IMPORT_PRICE = "import_price"  # PLN/kWh for consumption
+CONF_EXPORT_PRICE = "export_price"  # PLN/kWh for production compensation
 
 # API endpoints
 BASE_URL = "https://api-mojlicznik.energa-operator.pl/dp"

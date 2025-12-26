@@ -12,6 +12,7 @@ __pycache__/
 .venv*
 .coverage
 .pytest_cache
+.lab_credentials
 reports
 *.egg-info
 .renovate-cache
@@ -25,3 +26,16 @@ logs_energa.txt
 temp_*.py
 last_comment.txt
 
+# Debug/Investigation scripts (local only)
+check_*.py
+clear_*.py
+deep_*.py
+fix_*.py
+list_*.py
+reload_*.py
+remove_*.py
+restart_*.py
+test_*.py
+compare_*.py
+.vscode/
+README_backup.md

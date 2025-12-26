@@ -1,5 +1,48 @@
 # Changelog
 
+## v4.0.3 (2025-12-26) - COST STATISTICS FIX
+
+### 🐛 Critical Bug Fix: NULL Timestamps in Cost Statistics
+
+**Problem:** Cost statistics were being imported to the database but with NULL `start_ts` timestamps, 
+making them invisible in the Energy Dashboard (0.00 zł displayed for all periods).
+
+**Root Cause Analysis:**
+
+The issue was caused by incorrect creation of `StatisticData` objects in the `build_statistics()` function:
+
+```python
+# WRONG - Constructor syntax creates object, not TypedDict
+StatisticData(start=datetime_obj, sum=value, state=value)
+
+# CORRECT - Plain dict, as expected by Home Assistant's internal API
+{"start": datetime_obj, "sum": value, "state": value}
+```
+
+Home Assistant's `StatisticData` is defined as a `TypedDict` (in `homeassistant/components/recorder/models/statistics.py`).
+When called as a constructor like `StatisticData(...)`, Python does NOT create a dict - it creates a TypedDict 
+type hint object. The internal HA code in `db_schema.py` uses `stats["start"].timestamp()` to convert the 
+datetime to a Unix timestamp. When `stats` is not a proper dict, this access fails silently and `start_ts` 
+becomes NULL.
+
+**Solution:**
+- Changed from `StatisticData(...)` constructor to plain dict `{...}` format
+- Added `homeassistant.util.dt` import for proper timezone handling
+- Used `dt_util.as_utc()` for UTC timezone conversion
+
+### 🔧 Additional Fixes
+- Fixed Energy Dashboard entity references (removed incorrect `_2` suffix from cost sensor names)
+- Updated dictionary access pattern from attribute notation (`.start`, `.state`) to key notation (`["start"]`, `["state"]`)
+
+### 📝 Files Modified
+- `__init__.py` - Fixed StatisticData creation and timezone handling
+- `api.py` - Minor cleanup
+- `config_flow.py` - Minor improvements
+- `sensor.py` - Minor cleanup
+- `translations/pl.json` - Updated Polish translations
+
+---
+
 ## v4.0.2 (2025-12-22) - STABLE RELEASE
 
 **This is a complete rewrite of the integration (Clean Rebuild).**
