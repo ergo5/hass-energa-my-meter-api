@@ -162,8 +162,13 @@ async def _import_meter_history(
     entry: ConfigEntry,
 ) -> None:
     """Import historical data for a single meter."""
-    meter_id = meter["meter_point_id"]
-    serial = meter.get("meter_serial", meter_id)
+    # Use meter_serial for entity_id (real meter number, e.g. 30132815)
+    # meter_point_id is API-internal (e.g. 300302), only used for API calls
+    meter_point_id = meter["meter_point_id"]  # For API calls
+    meter_id = meter.get(
+        "meter_serial", meter_point_id
+    )  # For entity_id (real meter number)
+    serial = meter_id  # For notifications
 
     _LOGGER.info(
         "Starting history import for meter %s (%d days from %s)",
@@ -211,7 +216,9 @@ async def _import_meter_history(
             await asyncio.sleep(0.5)
 
             try:
-                day_data = await api.async_get_history_hourly(meter_id, target_day)
+                day_data = await api.async_get_history_hourly(
+                    meter_point_id, target_day
+                )
             except Exception as err:
                 _LOGGER.warning("Failed to fetch day %s: %s", target_day.date(), err)
                 continue
