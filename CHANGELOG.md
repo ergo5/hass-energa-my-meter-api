@@ -2,12 +2,14 @@
 
 ## v4.0.3 (2025-12-26) - COST STATISTICS FIX
 
-### 🐛 Critical Bug Fix: NULL Timestamps in Cost Statistics
+### 🐛 Critical Bug Fixes
+
+#### 1. NULL Timestamps in Cost Statistics
 
 **Problem:** Cost statistics were being imported to the database but with NULL `start_ts` timestamps, 
 making them invisible in the Energy Dashboard (0.00 zł displayed for all periods).
 
-**Root Cause Analysis:**
+**Root Cause:**
 
 The issue was caused by incorrect creation of `StatisticData` objects in the `build_statistics()` function:
 
@@ -30,12 +32,37 @@ becomes NULL.
 - Added `homeassistant.util.dt` import for proper timezone handling
 - Used `dt_util.as_utc()` for UTC timezone conversion
 
+#### 2. Incorrect Meter ID in Entity Names
+
+**Problem:** Historical statistics were imported under wrong sensor names (e.g. `sensor.energa_300302_*` 
+instead of `sensor.energa_30132815_*`), causing Energy Dashboard to show only partial data.
+
+**Root Cause:**
+
+The `_import_meter_history()` function was using `meter["meter_point_id"]` for building entity IDs:
+
+```python
+# WRONG - meter_point_id is API-internal identifier (e.g. 300302)
+meter_id = meter["meter_point_id"]
+entity_id = f"sensor.energa_{meter_id}_energa_zuzycie"
+```
+
+Two identifiers exist in meter data:
+- `meter_point_id` (e.g. 300302) - API-internal identifier for communication
+- `meter_serial` (e.g. 30132815) - Real meter number visible to user
+
+**Solution:**
+- Separated the two identifiers:
+  - `meter_point_id` - used only for API calls (`async_get_history_hourly()`)
+  - `meter_serial` - used for building user-facing entity IDs
+- This matches the original v4.0.2 logic
+
 ### 🔧 Additional Fixes
 - Fixed Energy Dashboard entity references (removed incorrect `_2` suffix from cost sensor names)
 - Updated dictionary access pattern from attribute notation (`.start`, `.state`) to key notation (`["start"]`, `["state"]`)
 
 ### 📝 Files Modified
-- `__init__.py` - Fixed StatisticData creation and timezone handling
+- `__init__.py` - Fixed StatisticData creation, timezone handling, and meter ID usage
 - `api.py` - Minor cleanup
 - `config_flow.py` - Minor improvements
 - `sensor.py` - Minor cleanup
