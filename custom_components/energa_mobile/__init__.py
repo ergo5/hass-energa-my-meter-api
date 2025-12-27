@@ -93,9 +93,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         try:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-            _LOGGER.info(
-                "[DEBUG] Service called: start_date=%s, days=%d", start_date_str, days
-            )
         except ValueError:
             _LOGGER.error(
                 "Invalid date format: %s (expected YYYY-MM-DD)", start_date_str
@@ -109,10 +106,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return
 
         # Get fresh meter data
-        _LOGGER.info("[DEBUG] Fetching meter data...")
         try:
             meters = await api.async_get_data(force_refresh=True)
-            _LOGGER.info("[DEBUG] Got %d meters from API", len(meters) if meters else 0)
         except Exception as err:
             _LOGGER.error("Failed to fetch meter data: %s", err)
             persistent_notification.async_create(
@@ -131,9 +126,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ]
 
         if not active_meters:
-            _LOGGER.warning(
-                "[DEBUG] No active meters found (filtered from %d total)", len(meters)
-            )
+            _LOGGER.warning("No active meters found")
             persistent_notification.async_create(
                 hass,
                 "Nie znaleziono aktywnych liczników",
@@ -181,7 +174,7 @@ async def _import_meter_history(
     serial = meter_id  # For notifications
 
     _LOGGER.info(
-        "[DEBUG] Starting history import for meter %s (%d days from %s)",
+        "Starting history import for meter %s (%d days from %s)",
         serial,
         days,
         start_date.date(),
@@ -201,15 +194,8 @@ async def _import_meter_history(
         anchor_import = float(meter.get("total_plus") or 0)
         anchor_export = float(meter.get("total_minus") or 0)
 
-        _LOGGER.info(
-            "[DEBUG] Anchors for %s: import=%.3f, export=%.3f",
-            serial,
-            anchor_import,
-            anchor_export,
-        )
-
         if anchor_import <= 0:
-            _LOGGER.error("[DEBUG] Invalid anchor for import (total_plus=0)")
+            _LOGGER.error("Invalid anchor for import (total_plus=0)")
             persistent_notification.async_create(
                 hass,
                 f"Brak punktu odniesienia dla licznika {serial}",
@@ -271,7 +257,7 @@ async def _import_meter_history(
             len(export_points),
         )
 
-        # Build statistics with intelligent initialization (forward calculation)
+        # Build statistics with cumulative sums (working backwards from anchor)
         def build_statistics(
             points: list, anchor: float, entity_suffix: str, entry: ConfigEntry
         ) -> int:
@@ -284,34 +270,14 @@ async def _import_meter_history(
             else:  # export
                 price = entry.options.get(CONF_EXPORT_PRICE, 0.95)
 
-            # Sort oldest first for forward calculation
-            points.sort(key=lambda x: x["dt"])
+            # Sort newest first for backward calculation
+            points.sort(key=lambda x: x["dt"], reverse=True)
 
-            # Build entity_id
-            if entity_suffix == "import":
-                energy_sensor_name = "energa_zuzycie"
-            else:
-                energy_sensor_name = "energa_produkcja"
-
-            entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
-
-            # SIMPLE SOLUTION: Calculate base so final sum = anchor
-            # Works for ALL scenarios: first import, reimport, incremental
-            total_to_import = sum(p["value"] for p in points)
-            running_sum = anchor - total_to_import
-
-            _LOGGER.info(
-                "Statistics init for %s: base=%.3f kWh (anchor=%.3f - total=%.3f)",
-                entity_id,
-                running_sum,
-                anchor,
-                total_to_import,
-            )
-
-            # Build energy statistics (FORWARD)
+            running_sum = anchor
             statistics = []
+            cost_statistics = []
+
             for point in points:
-                running_sum += point["value"]
                 statistics.append(
                     {
                         "start": point["dt"],
@@ -319,10 +285,13 @@ async def _import_meter_history(
                         "state": point["value"],
                     }
                 )
+                running_sum -= point["value"]
+
+            # Sort oldest first for import
+            statistics.sort(key=lambda x: x["start"])
 
             # Build cost statistics (forward, cumulative)
             cost_sum = 0.0
-            cost_statistics = []
             for stat in statistics:
                 hourly_energy = stat["state"] or 0
                 hourly_cost = hourly_energy * price
@@ -334,6 +303,15 @@ async def _import_meter_history(
                         "state": hourly_cost,
                     }
                 )
+
+            # Use correct entity IDs that match Energy Dashboard
+            # Energy sensors are: sensor.energa_{meter_id}_energa_zuzycie / energa_produkcja
+            if entity_suffix == "import":
+                energy_sensor_name = "energa_zuzycie"
+            else:
+                energy_sensor_name = "energa_produkcja"
+
+            entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
 
             # Import energy statistics
             metadata = StatisticMetaData(
