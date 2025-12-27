@@ -21,6 +21,9 @@ A robust integration for **Energa Operator** in Home Assistant. It downloads dat
 *   **🛠️ Auto-Repair (Self-Healing):** The "Download History" feature automatically fixes gaps and corrupted data.
 *   **🔍 OBIS Auto-Detect:** Automatically identifies usage (1.8.0) and production (2.8.0).
 
+> [!NOTE]
+> **First Import Spike:** When importing history for the first time, Energy Dashboard will show a large "catch-up" spike on the first day. This represents the cumulative consumption from meter installation to the first imported hour. This is expected behavior - subsequent days will display correctly.
+
 ---
 
 ## 💰 Cost Calculation
