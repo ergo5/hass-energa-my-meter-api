@@ -21,9 +21,6 @@ A robust integration for **Energa Operator** in Home Assistant. It downloads dat
 *   **🛠️ Auto-Repair (Self-Healing):** The "Download History" feature automatically fixes gaps and corrupted data.
 *   **🔍 OBIS Auto-Detect:** Automatically identifies usage (1.8.0) and production (2.8.0).
 
-> [!NOTE]
-> **First Import Spike:** When importing history for the first time, Energy Dashboard will show a large "catch-up" spike on the first day. This represents the cumulative consumption from meter installation to the first imported hour. This is expected behavior - subsequent days will display correctly.
-
 ---
 
 ## 💰 Cost Calculation
@@ -116,6 +113,9 @@ To see correctly calculated statistics **and costs** in the Energy Dashboard, yo
 
 ### Step 1: Configure Grid Consumption
 
+![Energy Dashboard Configuration Example](docs/energy_dashboard_config.png)
+*Example configuration showing Panel Energia sensors with cost tracking*
+
 | Dashboard Section | Correct Sensor | Cost Sensor |
 | :--- | :--- | :--- |
 | **Grid Consumption** (Pobór z sieci) | **Energa [ID] Panel Energia Zużycie** | **Energa [ID] Panel Energia Zużycie Cost** |
@@ -127,6 +127,9 @@ To see correctly calculated statistics **and costs** in the Energy Dashboard, yo
 > - Only sensors marked **(Panel Energia)** are designed for statistics
 
 ### Step 2: Configure Cost Sensors
+
+![Cost Sensor Configuration](docs/energy_cost_config.png)
+*Configure cost tracking by selecting the matching cost sensor for each energy source*
 
 When adding energy sources to the Energy Dashboard:
 1. Select the **Panel Energia** sensor for energy tracking
