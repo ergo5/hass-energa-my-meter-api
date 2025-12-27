@@ -34,7 +34,7 @@
                     "credentials": "Zmień Login/Hasło",
                     "prices": "Ustaw Ceny Energii",
                     "history": "Pobierz Historię Danych",
-                    "reimport_stats": "Reimportuj Statystyki"
+                    "clear_stats": "Wyczyść Statystyki Panelu Energia"
                 }
             },
             "credentials": {
@@ -59,8 +59,8 @@
                     "start_date": "Data początkowa"
                 }
             },
-            "reimport_stats": {
-                "title": "Reimport Statystyk",
+            "clear_stats": {
+                "title": "Czyszczenie Statystyk",
                 "description": "{warning}\n\nCzy chcesz kontynuować?"
             }
         }

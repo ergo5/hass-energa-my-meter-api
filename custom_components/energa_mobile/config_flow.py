@@ -133,7 +133,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         """Show options menu."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["credentials", "prices", "history", "reimport_stats"],
+            menu_options=["credentials", "prices", "history", "clear_stats"],
         )
 
     async def async_step_credentials(self, user_input=None):
@@ -288,49 +288,53 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             description_placeholders={"contract_date": contract_str},
         )
 
-    async def async_step_reimport_stats(self, user_input=None):
-        """Clear and reimport statistics with correct state_class."""
+    async def async_step_clear_stats(self, user_input=None):
+        """Clear Energy Panel statistics for Energa sensors.
+
+        This removes all historical statistics from Home Assistant's recorder
+        for Energa energy/production sensors. Use this if:
+        - Statistics show incorrect spikes or anomalies
+        - After updating the integration to fix data format issues
+
+        Note: After clearing, use 'Pobierz Historię' to reimport clean data.
+        """
         from homeassistant.components import recorder
         from homeassistant.helpers import entity_registry as er
 
         if user_input is not None:
-            # Get recorder instance
             rec = recorder.get_instance(self.hass)
-
-            # Get all Energa statistics sensor IDs
             entity_registry = er.async_get(self.hass)
-            statistic_ids = []
 
-            for entity in entity_registry.entities.values():
-                if (
-                    entity.platform == DOMAIN
-                    and (
-                        "energa_zuzycie" in entity.entity_id
-                        or "energa_produkcja" in entity.entity_id
-                    )
-                    and "_stats" in entity.unique_id
-                ):
-                    statistic_ids.append(entity.entity_id)
+            # Find all Energa Panel Energia sensors (energy statistics only)
+            # These have "energa_zuzycie" or "energa_produkcja" in entity_id
+            # and "_stats" marker in unique_id (identifies Panel Energia sensors)
+            statistic_ids = [
+                entity.entity_id
+                for entity in entity_registry.entities.values()
+                if entity.platform == DOMAIN
+                and (
+                    "energa_zuzycie" in entity.entity_id
+                    or "energa_produkcja" in entity.entity_id
+                )
+                and entity.unique_id
+                and "_stats" in entity.unique_id
+            ]
 
-            # Clear statistics for these sensors
             if statistic_ids:
-                # async_clear_statistics is not a coroutine - don't await
                 rec.async_clear_statistics(statistic_ids)
                 _LOGGER.info(
-                    "Cleared statistics for %d sensors: %s",
+                    "Cleared Energy Panel statistics for %d Energa sensors: %s",
                     len(statistic_ids),
                     statistic_ids,
                 )
-                # Note: Statistics will auto-reimport on next sensor update
+            else:
+                _LOGGER.warning("No Energa Panel Energia sensors found to clear")
 
-            return self.async_create_entry(
-                title="",
-                data={},
-            )
+            return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
-            step_id="reimport_stats",
+            step_id="clear_stats",
             description_placeholders={
-                "warning": "To wyczyści i reimportuje wszystkie statystyki dla sensorów Energa. Zalecane po aktualizacji integracji."
+                "warning": "⚠️ To **nieodwracalnie wyczyści** wszystkie statystyki energii i kosztów dla Panelu Energia.\n\nPo wyczyszczeniu użyj 'Pobierz Historię' aby ponownie zaimportować dane."
             },
         )
