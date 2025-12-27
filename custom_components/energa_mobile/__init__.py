@@ -257,7 +257,7 @@ async def _import_meter_history(
             len(export_points),
         )
 
-        # Build statistics with cumulative sums (working backwards from anchor)
+        # Build statistics with intelligent initialization (forward calculation)
         def build_statistics(
             points: list, anchor: float, entity_suffix: str, entry: ConfigEntry
         ) -> int:
@@ -270,14 +270,82 @@ async def _import_meter_history(
             else:  # export
                 price = entry.options.get(CONF_EXPORT_PRICE, 0.95)
 
-            # Sort newest first for backward calculation
-            points.sort(key=lambda x: x["dt"], reverse=True)
+            # Sort oldest first for forward calculation
+            points.sort(key=lambda x: x["dt"])
 
-            running_sum = anchor
+            # INTELLIGENT INITIALIZATION: Query last sum from database or calculate base
+            from homeassistant.components.recorder.statistics import (
+                get_last_statistics,
+            )
+
+            # Build entity_id
+            if entity_suffix == "import":
+                energy_sensor_name = "energa_zuzycie"
+            else:
+                energy_sensor_name = "energa_produkcja"
+
+            entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
+
+            # Query last statistics sum
+            running_sum = 0.0  # Fallback
+
+            try:
+                last_stats = hass.async_add_executor_job(
+                    get_last_statistics, hass, 1, entity_id, True, {"sum"}
+                )
+                # This is sync in the executor job context
+                import asyncio
+
+                last_stats_result = asyncio.run_coroutine_threadsafe(
+                    last_stats, hass.loop
+                ).result(timeout=5)
+
+                if entity_id in last_stats_result and last_stats_result[entity_id]:
+                    last_sum = last_stats_result[entity_id][0].get("sum")
+                    if last_sum is not None:
+                        # INCREMENTAL: Continue from last known sum
+                        running_sum = last_sum
+                        _LOGGER.info(
+                            "Statistics: Continuing from last sum=%.3f for %s",
+                            running_sum,
+                            entity_id,
+                        )
+                    else:
+                        # FIRST IMPORT: Calculate base so final sum = anchor
+                        total_to_import = sum(p["value"] for p in points)
+                        running_sum = anchor - total_to_import
+                        _LOGGER.info(
+                            "Statistics: First import for %s, base=%.3f (anchor=%.3f - import=%.3f)",
+                            entity_id,
+                            running_sum,
+                            anchor,
+                            total_to_import,
+                        )
+                else:
+                    # NO PREVIOUS DATA: Calculate base
+                    total_to_import = sum(p["value"] for p in points)
+                    running_sum = anchor - total_to_import
+                    _LOGGER.info(
+                        "Statistics: No previous data for %s, base=%.3f (anchor=%.3f)",
+                        entity_id,
+                        running_sum,
+                        anchor,
+                    )
+            except Exception as e:
+                # FALLBACK: Calculate base
+                total_to_import = sum(p["value"] for p in points)
+                running_sum = anchor - total_to_import
+                _LOGGER.warning(
+                    "Failed to query last statistics for %s, using calculated base=%.3f: %s",
+                    entity_id,
+                    running_sum,
+                    e,
+                )
+
+            # Build energy statistics (FORWARD)
             statistics = []
-            cost_statistics = []
-
             for point in points:
+                running_sum += point["value"]
                 statistics.append(
                     {
                         "start": point["dt"],
@@ -285,13 +353,10 @@ async def _import_meter_history(
                         "state": point["value"],
                     }
                 )
-                running_sum -= point["value"]
-
-            # Sort oldest first for import
-            statistics.sort(key=lambda x: x["start"])
 
             # Build cost statistics (forward, cumulative)
             cost_sum = 0.0
+            cost_statistics = []
             for stat in statistics:
                 hourly_energy = stat["state"] or 0
                 hourly_cost = hourly_energy * price
@@ -303,15 +368,6 @@ async def _import_meter_history(
                         "state": hourly_cost,
                     }
                 )
-
-            # Use correct entity IDs that match Energy Dashboard
-            # Energy sensors are: sensor.energa_{meter_id}_energa_zuzycie / energa_produkcja
-            if entity_suffix == "import":
-                energy_sensor_name = "energa_zuzycie"
-            else:
-                energy_sensor_name = "energa_produkcja"
-
-            entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
 
             # Import energy statistics
             metadata = StatisticMetaData(
