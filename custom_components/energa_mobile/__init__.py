@@ -304,12 +304,12 @@ async def _import_meter_history(
                     }
                 )
 
-            # Use correct entity IDs that match Energy Dashboard
-            # Energy sensors are: sensor.energa_{meter_id}_energa_zuzycie / energa_produkcja
+            # Use correct entity IDs that match actual sensors on PROD
+            # Energy sensors are: sensor.energa_{meter_id}_panel_energia_zuzycie / panel_energia_produkcja
             if entity_suffix == "import":
-                energy_sensor_name = "energa_zuzycie"
+                energy_sensor_name = "panel_energia_zuzycie"
             else:
-                energy_sensor_name = "energa_produkcja"
+                energy_sensor_name = "panel_energia_produkcja"
 
             entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
 
