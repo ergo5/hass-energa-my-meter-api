@@ -40,6 +40,11 @@ class EnergaAPI:
         self._session = session
         self._token = None  # Server-returned token (may be empty in newer API)
         self._meters_data = []
+        self._hass = None  # Reference to HA instance for statistics queries
+
+    def set_hass(self, hass):
+        """Set Home Assistant instance reference for database queries."""
+        self._hass = hass
 
     async def async_login(self) -> bool:
         try:
@@ -223,7 +228,71 @@ class EnergaAPI:
         # Build import statistics (forward - cumulative sum)
         if all_points["import"]:
             all_points["import"].sort(key=lambda x: x["dt"])  # Oldest first
-            running_sum = 0.0
+
+            # INTELLIGENT INITIALIZATION: Query last sum from database
+            # This allows:  - Incremental updates (continue from last)
+            #              - First imports (calculate proper base)
+            #              - Reimports after clear_stats
+            running_sum = 0.0  # Default fallback
+
+            try:
+                from homeassistant.components.recorder.statistics import (
+                    get_last_statistics,
+                )
+
+                # Get serial for entity_id (passed via kwargs if available)
+                meter_serial = meter.get("meter_serial", meter_point_id)
+                entity_id = f"sensor.energa_{meter_serial}_energa_zuzycie"
+
+                # Query last statistics from database (async_add_executor_job needed)
+                if hasattr(self, "_hass"):  # hass reference if available
+                    last_stats = await self._hass.async_add_executor_job(
+                        get_last_statistics, self._hass, 1, entity_id, True, {"sum"}
+                    )
+
+                    if entity_id in last_stats and last_stats[entity_id]:
+                        last_sum = last_stats[entity_id][0].get("sum")
+                        if last_sum is not None:
+                            # INCREMENTAL UPDATE: Continue from last known sum
+                            running_sum = last_sum
+                            _LOGGER.debug(
+                                "Statistics: Continuing from last sum=%.3f for %s",
+                                running_sum,
+                                entity_id,
+                            )
+                        else:
+                            # FIRST IMPORT: Calculate base so final sum = anchor
+                            total_to_import = sum(
+                                p["value"] for p in all_points["import"]
+                            )
+                            running_sum = anchor_import - total_to_import
+                            _LOGGER.info(
+                                "Statistics: First import for %s, base=%.3f (anchor=%.3f - import=%.3f)",
+                                entity_id,
+                                running_sum,
+                                anchor_import,
+                                total_to_import,
+                            )
+                    else:
+                        # No previous statistics - calculate base
+                        total_to_import = sum(p["value"] for p in all_points["import"])
+                        running_sum = anchor_import - total_to_import
+                        _LOGGER.info(
+                            "Statistics: No previous data for %s, base=%.3f",
+                            entity_id,
+                            running_sum,
+                        )
+                else:
+                    # No hass reference - fallback (shouldn't happen in normal flow)
+                    _LOGGER.warning(
+                        "No hass reference for statistics query, using 0.0 base"
+                    )
+                    running_sum = 0.0
+            except Exception as e:
+                # Fallback on error - use old behavior
+                _LOGGER.warning("Failed to query statistics, using fallback: %s", e)
+                running_sum = 0.0
+
             for point in all_points["import"]:
                 running_sum += point["value"]
                 result["import"].append(
@@ -233,7 +302,56 @@ class EnergaAPI:
         # Build export statistics (forward - cumulative sum)
         if all_points["export"]:
             all_points["export"].sort(key=lambda x: x["dt"])  # Oldest first
+
+            # Same intelligent initialization for export
             running_sum = 0.0
+
+            try:
+                from homeassistant.components.recorder.statistics import (
+                    get_last_statistics,
+                )
+
+                meter_serial = meter.get("meter_serial", meter_point_id)
+                entity_id = f"sensor.energa_{meter_serial}_energa_produkcja"
+
+                if hasattr(self, "_hass"):
+                    last_stats = await self._hass.async_add_executor_job(
+                        get_last_statistics, self._hass, 1, entity_id, True, {"sum"}
+                    )
+
+                    if entity_id in last_stats and last_stats[entity_id]:
+                        last_sum = last_stats[entity_id][0].get("sum")
+                        if last_sum is not None:
+                            running_sum = last_sum
+                            _LOGGER.debug(
+                                "Statistics: Continuing from last sum=%.3f for %s",
+                                running_sum,
+                                entity_id,
+                            )
+                        else:
+                            total_to_import = sum(
+                                p["value"] for p in all_points["export"]
+                            )
+                            running_sum = anchor_export - total_to_import
+                            _LOGGER.info(
+                                "Statistics: First import for %s, base=%.3f",
+                                entity_id,
+                                running_sum,
+                            )
+                    else:
+                        total_to_import = sum(p["value"] for p in all_points["export"])
+                        running_sum = anchor_export - total_to_import
+                        _LOGGER.info(
+                            "Statistics: No previous data for %s, base=%.3f",
+                            entity_id,
+                            running_sum,
+                        )
+            except Exception as e:
+                _LOGGER.warning(
+                    "Failed to query export statistics, using fallback: %s", e
+                )
+                running_sum = 0.0
+
             for point in all_points["export"]:
                 running_sum += point["value"]
                 result["export"].append(
