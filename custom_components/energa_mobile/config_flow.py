@@ -316,8 +316,6 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                     "energa_zuzycie" in entity.entity_id
                     or "energa_produkcja" in entity.entity_id
                 )
-                and entity.unique_id
-                and "_stats" in entity.unique_id
             ]
 
             if statistic_ids:
