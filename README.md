@@ -113,7 +113,8 @@ To see correctly calculated statistics **and costs** in the Energy Dashboard, yo
 
 ### Step 1: Configure Grid Consumption
 
-![Energy Dashboard Configuration Example](docs/energy_dashboard_config.png)
+<img src="docs/energy_dashboard_config.png" alt="Energy Dashboard Configuration" width="600"/>
+
 *Example configuration showing Panel Energia sensors with cost tracking*
 
 | Dashboard Section | Correct Sensor | Cost Sensor |
@@ -128,8 +129,9 @@ To see correctly calculated statistics **and costs** in the Energy Dashboard, yo
 
 ### Step 2: Configure Cost Sensors
 
-![Cost Sensor Configuration](docs/energy_cost_config.png)
-*Configure cost tracking by selecting the matching cost sensor for each energy source*
+<img src="docs/energy_cost_config.png" alt="Cost Sensor Configuration" width="600"/>
+
+*Configure cost tracking by selecting the matching cost sensor*
 
 When adding energy sources to the Energy Dashboard:
 1. Select the **Panel Energia** sensor for energy tracking
