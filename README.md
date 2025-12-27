@@ -85,23 +85,23 @@ The integration creates multiple sensors organized by function:
 ### Daily Sensors
 | Sensor Name | Description |
 |-------------|-------------|
-| `Energa Zużycie Dziś` | Today's consumption (kWh) |
-| `Energa Produkcja Dziś` | Today's production (kWh) |
+| `Zużycie Dziś` | Today's consumption (kWh) |
+| `Produkcja Dziś` | Today's production (kWh) |
 
 ### Meter State Sensors
 | Sensor Name | Description |
 |-------------|-------------|
-| `Energa Stan Licznika Import` | Total meter reading (consumption) |
-| `Energa Stan Licznika Export` | Total meter reading (production) |
+| `Stan Licznika Import` | Total meter reading (consumption) |
+| `Stan Licznika Export` | Total meter reading (production) |
 
 ### Metadata Sensors
 | Sensor Name | Description |
 |-------------|-------------|
-| `Energa Adres` | Installation address |
-| `Energa Taryfa` | Tariff type (e.g., G11) |
-| `Energa PPE` | PPE identification number |
-| `Energa Numer Licznika` | Meter serial number |
-| `Energa Data Aktywacji` | Mój Licznik app activation date* |
+| `Adres` | Installation address |
+| `Taryfa` | Tariff type (e.g., G11) |
+| `PPE` | PPE identification number |
+| `Numer Licznika` | Meter serial number |
+| `Data Aktywacji` | Mój Licznik app activation date* |
 
 *Only available for prosumer accounts
 
