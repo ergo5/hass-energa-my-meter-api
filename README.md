@@ -128,7 +128,7 @@ To see correctly calculated statistics **and costs** in the Energy Dashboard, yo
 
 ### Step 2: Configure Cost Sensors
 
-![Cost Sensor Configuration](docs/energy_cost_config.webp)
+![Cost Sensor Configuration](docs/energy_cost_config.png)
 *Configure cost tracking by selecting the matching cost sensor for each energy source*
 
 When adding energy sources to the Energy Dashboard:
