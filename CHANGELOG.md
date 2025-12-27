@@ -1,6 +1,8 @@
 # Changelog
 
-## v4.0.3 (2025-12-26) - COST STATISTICS FIX
+## v4.1.1 (2025-12-27) - COST STATISTICS FIX
+
+> **Note:** This is a patch release after v4.1.0, addressing critical bugs in cost statistics.
 
 ### 🐛 Critical Bug Fixes
 
@@ -60,13 +62,14 @@ Two identifiers exist in meter data:
 ### 🔧 Additional Fixes
 - Fixed Energy Dashboard entity references (removed incorrect `_2` suffix from cost sensor names)
 - Updated dictionary access pattern from attribute notation (`.start`, `.state`) to key notation (`["start"]`, `["state"]`)
+- Added token expiry handling in Options Flow history import
+- Renamed "Reimportuj Statystyki" button to "Wyczyść Statystyki Panelu Energia" for clarity
 
 ### 📝 Files Modified
 - `__init__.py` - Fixed StatisticData creation, timezone handling, and meter ID usage
-- `api.py` - Minor cleanup
-- `config_flow.py` - Minor improvements
-- `sensor.py` - Minor cleanup
+- `config_flow.py` - Added token expiry handling, renamed clear_stats button
 - `translations/pl.json` - Updated Polish translations
+- `translations/en.json` - Added missing English translations
 
 ---
 
