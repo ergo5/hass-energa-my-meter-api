@@ -5,7 +5,7 @@
 <h1 align="center">Energa Mobile Integration for Home Assistant</h1>
 
 
-![Version](https://img.shields.io/badge/version-v4.1.0-green)
+![Version](https://img.shields.io/badge/version-v4.0.3-green)
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
 A robust integration for **Energa Operator** in Home Assistant. It downloads data from the "Mój Licznik" service (Energa Operator) and integrates seamlessly with the **Energy Dashboard**. Features **self-healing history import** and correct cumulative statistics.
@@ -78,7 +78,7 @@ If you see errors like "Token expired, attempting re-login" or frequent authenti
 
 **Solution:** Reinstall and re-add the integration
 
-1. **Update to v4.1.0 or newer** (skip if already on latest):
+1. **Update to v4.0.3 or newer** (skip if already on latest):
    - Open **HACS** → **Integrations** 
    - Find **Energa Mobile** → Click **Update** (or **Redownload**)
    - Restart Home Assistant
