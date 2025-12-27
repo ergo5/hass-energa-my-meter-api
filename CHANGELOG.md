@@ -36,22 +36,22 @@ becomes NULL.
 
 #### 2. Incorrect Meter ID in Entity Names
 
-**Problem:** Historical statistics were imported under wrong sensor names (e.g. `sensor.energa_300302_*` 
-instead of `sensor.energa_30132815_*`), causing Energy Dashboard to show only partial data.
+**Problem:** Historical statistics were imported under wrong sensor names (e.g. `sensor.energa_123456_*` 
+stead of `sensor.energa_12345678_*`), causing Energy Dashboard to show only partial data.
 
 **Root Cause:**
 
 The `_import_meter_history()` function was using `meter["meter_point_id"]` for building entity IDs:
 
 ```python
-# WRONG - meter_point_id is API-internal identifier (e.g. 300302)
+# WRONG - meter_point_id is API-internal identifier (e.g. 123456)
 meter_id = meter["meter_point_id"]
 entity_id = f"sensor.energa_{meter_id}_energa_zuzycie"
 ```
 
 Two identifiers exist in meter data:
-- `meter_point_id` (e.g. 300302) - API-internal identifier for communication
-- `meter_serial` (e.g. 30132815) - Real meter number visible to user
+- `meter_point_id` (e.g. 123456) - API-internal identifier for communication
+- `meter_serial` (e.g. 12345678) - Real meter number visible to user
 
 **Solution:**
 - Separated the two identifiers:

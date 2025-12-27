@@ -165,8 +165,8 @@ async def _import_meter_history(
     entry: ConfigEntry,
 ) -> None:
     """Import historical data for a single meter."""
-    # Use meter_serial for entity_id (real meter number, e.g. 30132815)
-    # meter_point_id is API-internal (e.g. 300302), only used for API calls
+    # Use meter_serial for entity_id (real meter number, e.g. 12345678)
+    # meter_point_id is API-internal (e.g. 123456), only used for API calls
     meter_point_id = meter["meter_point_id"]  # For API calls
     meter_id = meter.get(
         "meter_serial", meter_point_id

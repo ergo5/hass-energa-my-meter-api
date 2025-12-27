@@ -243,7 +243,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
             # Fetch meter data
             meters = await self.api.async_get_data()
 
-            # Filter out meters that return errors (like 300302)
+            # Filter out meters that return errors (e.g. invalid meter_point_id)
             active_meters = []
             for meter in meters:
                 meter_id = meter.get("meter_point_id")
