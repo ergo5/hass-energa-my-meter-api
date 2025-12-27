@@ -1,8 +1,8 @@
 # Changelog
 
-## v4.1.1 (2025-12-27) - COST STATISTICS FIX
+## v4.2.0 (2025-12-27) - Cost Statistics Fixes & Documentation
 
-> **Note:** This is a patch release after v4.1.0, addressing critical bugs in cost statistics.
+> **Note:** This is a **minor release** after v4.1.0, including critical bugfixes and comprehensive documentation improvements.
 
 ### 🐛 Critical Bug Fixes
 
