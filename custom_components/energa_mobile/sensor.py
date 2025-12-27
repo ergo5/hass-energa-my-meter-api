@@ -429,7 +429,8 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
         # Sensor class attributes
         self._attr_device_class = SensorDeviceClass.ENERGY
-        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        # NO state_class - this sensor only imports statistics, doesn't auto-generate
+        # Prevents collision with recorder (UNIQUE constraint on statistics table)
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
         # Device info
