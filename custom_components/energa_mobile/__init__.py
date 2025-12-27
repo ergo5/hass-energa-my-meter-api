@@ -286,19 +286,14 @@ async def _import_meter_history(
 
             entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
 
-            # Query last statistics sum
+            # Query last statistics sum (direct sync call)
             running_sum = 0.0  # Fallback
 
             try:
-                last_stats = hass.async_add_executor_job(
-                    get_last_statistics, hass, 1, entity_id, True, {"sum"}
+                # get_last_statistics is SYNC - call directly!
+                last_stats_result = get_last_statistics(
+                    hass, 1, entity_id, True, {"sum"}
                 )
-                # This is sync in the executor job context
-                import asyncio
-
-                last_stats_result = asyncio.run_coroutine_threadsafe(
-                    last_stats, hass.loop
-                ).result(timeout=5)
 
                 if entity_id in last_stats_result and last_stats_result[entity_id]:
                     last_sum = last_stats_result[entity_id][0].get("sum")
