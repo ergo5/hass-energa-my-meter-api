@@ -10,7 +10,6 @@ from typing import override
 from zoneinfo import ZoneInfo
 
 from homeassistant.components.recorder.models import (
-    StatisticData,
     StatisticMeanType,
     StatisticMetaData,
 )
@@ -54,7 +53,7 @@ async def async_setup_entry(
     sw_version = str(integration.version)  # Must be string for AwesomeVersion
 
     # Create coordinator
-    coordinator = EnergaCoordinator(hass, api)
+    coordinator = EnergaCoordinator(hass, api, entry)
 
     # Initial data fetch
     try:
@@ -224,9 +223,9 @@ async def async_setup_entry(
 
 
 class EnergaCoordinator(DataUpdateCoordinator):
-    """Coordinator for fetching Energa data."""
+    """Coordinator for fetching Energa data with smart fetch."""
 
-    def __init__(self, hass: HomeAssistant, api) -> None:
+    def __init__(self, hass: HomeAssistant, api, entry) -> None:
         """Initialize coordinator."""
         super().__init__(
             hass,
@@ -235,29 +234,42 @@ class EnergaCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(hours=1),  # Hourly updates
         )
         self.api = api
+        self.entry = entry
         self._hourly_stats: dict = {}  # {meter_id: {"import": [...], "export": [...]}}
+        self._pre_fetched_stats: dict = {}  # {entity_id: {"sum": x, "start": dt}}
+        self._meter_totals: dict = {}  # {meter_id: {"import": x, "export": y}}
 
     async def _async_update_data(self):
-        """Fetch data from API."""
+        """Fetch data from API using smart fetch pattern."""
         try:
             # Fetch meter data
             meters = await self.api.async_get_data()
 
-            # Filter out meters that return errors (e.g. invalid meter_point_id)
-            active_meters = []
-            for meter in meters:
-                meter_id = meter.get("meter_point_id")
-                # Check if meter has valid data (total_plus should be > 0 for active meter)
-                if meter.get("total_plus") and float(meter.get("total_plus", 0)) > 0:
-                    active_meters.append(meter)
-                else:
-                    _LOGGER.debug("Skipping meter %s - no valid data", meter_id)
+            # Filter active meters
+            active_meters = [
+                m
+                for m in meters
+                if m.get("total_plus") and float(m.get("total_plus", 0)) > 0
+            ]
 
             for meter in active_meters:
                 meter_id = meter["meter_point_id"]
+
+                # Store meter totals as anchors for backward calculation
+                self._meter_totals[meter_id] = {
+                    "import": float(meter.get("total_plus", 0) or 0),
+                    "export": float(meter.get("total_minus", 0) or 0),
+                }
+
+                # Pre-fetch last statistics for this meter (async-safe)
+                await self._fetch_last_stats_for_meter(meter_id)
+
+                # Query last_stat_date for this meter (smart fetch)
+                start_date = await self._get_smart_start_date(meter_id)
+
                 try:
                     stats = await self.api.async_get_hourly_statistics(
-                        meter_id, days_back=2
+                        meter_id, start_date=start_date
                     )
                     self._hourly_stats[meter_id] = stats
                 except EnergaTokenExpiredError:
@@ -284,10 +296,141 @@ class EnergaCoordinator(DataUpdateCoordinator):
         except Exception as err:
             raise UpdateFailed(f"Unexpected error: {err}") from err
 
+    async def _get_smart_start_date(self, meter_id: str):
+        """Get start_date based on last imported statistic (thedeemling pattern).
+
+        Returns:
+            datetime: Start date for fetching (last_stat + 1h, or 30 days ago)
+        """
+        from homeassistant.components.recorder.statistics import get_last_statistics
+        from homeassistant.helpers import entity_registry as er
+        from homeassistant.util import dt as dt_util
+        from datetime import datetime as dt_datetime
+
+        tz = ZoneInfo("Europe/Warsaw")
+        now = dt_datetime.now(tz)
+        default_start = now - timedelta(days=30)
+
+        # Find entity_id for this meter's import sensor
+        registry = er.async_get(self.hass)
+        entity_id = None
+
+        for entity in registry.entities.values():
+            if (
+                entity.unique_id == f"energa_{meter_id}_import_stats"
+                and entity.platform == DOMAIN
+            ):
+                entity_id = entity.entity_id
+                break
+
+        if not entity_id:
+            _LOGGER.debug(
+                "No entity found for meter %s, using default 30 days", meter_id
+            )
+            return default_start
+
+        # Query last statistic
+        try:
+            last_stats = await self.hass.async_add_executor_job(
+                get_last_statistics, self.hass, 1, entity_id, True, {"sum"}
+            )
+
+            if entity_id in last_stats and last_stats[entity_id]:
+                last_ts = last_stats[entity_id][0].get("start")
+                if last_ts:
+                    # Convert to datetime
+                    if isinstance(last_ts, (int, float)):
+                        last_dt = dt_util.utc_from_timestamp(last_ts).astimezone(tz)
+                    else:
+                        last_dt = last_ts.astimezone(tz)
+
+                    # Start from next hour
+                    start_date = last_dt + timedelta(hours=1)
+
+                    _LOGGER.debug(
+                        "Smart fetch for %s: last_stat=%s, start=%s",
+                        entity_id,
+                        last_dt,
+                        start_date,
+                    )
+                    return start_date
+
+        except Exception as err:
+            _LOGGER.warning("Failed to query last stats for %s: %s", entity_id, err)
+
+        return default_start
+
     def get_hourly_stats(self, meter_id: str, data_key: str) -> list:
         """Get hourly statistics for a meter."""
         meter_stats = self._hourly_stats.get(meter_id, {})
         return meter_stats.get(data_key, [])
+
+    def get_pre_fetched_stats(self) -> dict:
+        """Get pre-fetched last statistics for all entities."""
+        return self._pre_fetched_stats
+
+    def get_meter_total(self, meter_id: str, data_key: str) -> float:
+        """Get meter total (anchor) for backward calculation."""
+        totals = self._meter_totals.get(meter_id, {})
+        return totals.get(data_key, 0.0)
+
+    async def _fetch_last_stats_for_meter(self, meter_id: str):
+        """Pre-fetch last statistics for meter entities (async-safe)."""
+        from homeassistant.components.recorder.statistics import get_last_statistics
+        from homeassistant.helpers import entity_registry as er
+
+        registry = er.async_get(self.hass)
+
+        # Find Panel Energia sensors for this meter
+        for suffix in ["import", "export"]:
+            unique_id = f"energa_{meter_id}_{suffix}_stats"
+
+            for entity in registry.entities.values():
+                if entity.unique_id == unique_id and entity.platform == DOMAIN:
+                    entity_id = entity.entity_id
+
+                    try:
+                        last_stats = await self.hass.async_add_executor_job(
+                            get_last_statistics,
+                            self.hass,
+                            1,
+                            entity_id,
+                            True,
+                            {"sum", "start"},
+                        )
+
+                        if entity_id in last_stats and last_stats[entity_id]:
+                            self._pre_fetched_stats[entity_id] = last_stats[entity_id][
+                                0
+                            ]
+                            _LOGGER.debug(
+                                "Pre-fetched stats for %s: sum=%.3f",
+                                entity_id,
+                                last_stats[entity_id][0].get("sum", 0),
+                            )
+
+                            # Also fetch cost sensor
+                            cost_entity_id = f"{entity_id}_cost"
+                            cost_stats = await self.hass.async_add_executor_job(
+                                get_last_statistics,
+                                self.hass,
+                                1,
+                                cost_entity_id,
+                                True,
+                                {"sum"},
+                            )
+                            if (
+                                cost_entity_id in cost_stats
+                                and cost_stats[cost_entity_id]
+                            ):
+                                self._pre_fetched_stats[cost_entity_id] = cost_stats[
+                                    cost_entity_id
+                                ][0]
+
+                    except Exception as err:
+                        _LOGGER.debug(
+                            "Could not pre-fetch stats for %s: %s", entity_id, err
+                        )
 
 
 class EnergaLiveSensor(CoordinatorEntity, SensorEntity):
@@ -469,7 +612,16 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
     @override
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Handle coordinator update - import energy and cost statistics to recorder."""
+        """Handle coordinator update - import energy and cost statistics to recorder.
+
+        Uses EnergaDataUpdater for proper incremental statistics:
+        - Queries last sum from database
+        - Incrementally adds hourly values
+        - Handles estimates by buffering
+        - Deduplicates already-imported points
+        """
+        from .data_updater import EnergaDataUpdater
+
         _LOGGER.debug("Updating statistics for %s", self.entity_id)
 
         # Get hourly data from coordinator
@@ -480,44 +632,49 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
             super()._handle_coordinator_update()
             return
 
-        # Get price from config options
-        if self._data_key == "import":
-            price = self._entry.options.get(CONF_IMPORT_PRICE, 1.188)
-        else:  # export
-            price = self._entry.options.get(CONF_EXPORT_PRICE, 0.95)
-
-        # Build StatisticData lists for energy AND cost
-        energy_stats = []
-        cost_stats = []
-        cost_sum = 0.0
-
+        # Convert coordinator format to DataUpdater format
+        # Coordinator returns: [{"start": dt, "sum": x, "state": y}]
+        # DataUpdater expects: [{"dt": dt, "value": y}]
+        hourly_data = []
         for point in hourly_stats:
             try:
-                # Energy statistic
-                energy_stats.append(
-                    StatisticData(
-                        start=point["start"],
-                        sum=point["sum"],
-                        state=point.get("state", 0),
-                    )
-                )
-
-                # Cost statistic (hourly cost = hourly energy × price)
-                hourly_energy = point.get("state", 0)
-                hourly_cost = hourly_energy * price
-                cost_sum += hourly_cost
-                cost_stats.append(
-                    StatisticData(
-                        start=point["start"],
-                        sum=cost_sum,
-                        state=hourly_cost,
-                    )
+                hourly_data.append(
+                    {
+                        "dt": point["start"],
+                        "value": point.get("state", 0),
+                        "is_estimated": point.get("is_estimated", False),
+                    }
                 )
             except (KeyError, TypeError) as err:
-                _LOGGER.warning("Invalid stat point: %s", err)
+                _LOGGER.warning("Invalid hourly point: %s", err)
                 continue
 
+        if not hourly_data:
+            super()._handle_coordinator_update()
+            return
+
+        # Use DataUpdater for proper statistics logic
+        # Pass pre-fetched stats from Coordinator (async-safe, no blocking calls)
+        updater = EnergaDataUpdater(
+            self.hass,
+            self._entry,
+            pre_fetched_stats=self.coordinator.get_pre_fetched_stats(),
+        )
+
+        # Get meter total as anchor for backward calculation
+        meter_total = self.coordinator.get_meter_total(self._meter_id, self._data_key)
+
+        # CRITICAL: Pass self.entity_id - the ACTUAL entity_id, not a constructed one
+        energy_stats, cost_stats = updater.gather_stats_for_sensor(
+            meter_id=self._meter_id,
+            data_key=self._data_key,
+            hourly_data=hourly_data,
+            entity_id=self.entity_id,  # Real entity_id from HA
+            meter_total=meter_total,
+        )
+
         if not energy_stats:
+            _LOGGER.debug("DataUpdater returned no stats for %s", self.entity_id)
             super()._handle_coordinator_update()
             return
 
@@ -540,31 +697,36 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
         async_import_statistics(self.hass, energy_metadata, energy_stats)
 
         # === IMPORT COST STATISTICS ===
-        cost_entity_id = f"{self.entity_id}_cost"
-        cost_name = (
-            f"{self._attr_name} Koszt"
-            if self._data_key == "import"
-            else f"{self._attr_name} Rekompensata"
-        )
+        if cost_stats:
+            cost_entity_id = f"{self.entity_id}_cost"
+            cost_name = (
+                f"{self._attr_name} Koszt"
+                if self._data_key == "import"
+                else f"{self._attr_name} Rekompensata"
+            )
 
-        cost_metadata = StatisticMetaData(
-            source="recorder",
-            statistic_id=cost_entity_id,
-            name=cost_name,
-            unit_of_measurement="PLN",
-            has_mean=False,
-            has_sum=True,
-            mean_type=StatisticMeanType.NONE,
-        )
+            cost_metadata = StatisticMetaData(
+                source="recorder",
+                statistic_id=cost_entity_id,
+                name=cost_name,
+                unit_of_measurement="PLN",
+                has_mean=False,
+                has_sum=True,
+                mean_type=StatisticMeanType.NONE,
+            )
 
-        _LOGGER.info(
-            "Importing %d cost statistics for %s (price: %.3f PLN/kWh, total: %.2f PLN)",
-            len(cost_stats),
-            cost_entity_id,
-            price,
-            cost_sum,
-        )
-        async_import_statistics(self.hass, cost_metadata, cost_stats)
+            price = self._entry.options.get(
+                CONF_IMPORT_PRICE if self._data_key == "import" else CONF_EXPORT_PRICE,
+                1.188 if self._data_key == "import" else 0.95,
+            )
+
+            _LOGGER.info(
+                "Importing %d cost statistics for %s (price: %.3f PLN/kWh)",
+                len(cost_stats),
+                cost_entity_id,
+                price,
+            )
+            async_import_statistics(self.hass, cost_metadata, cost_stats)
 
         # Call parent update
         super()._handle_coordinator_update()
