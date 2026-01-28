@@ -572,7 +572,8 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
         # Sensor class attributes
         self._attr_device_class = SensorDeviceClass.ENERGY
-        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        # NO state_class! We import statistics manually via async_import_statistics.
+        # If we set state_class, HA Recorder auto-creates short-term stats from native_value.
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
         # Device info
@@ -585,23 +586,12 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Return current meter reading."""
-        if not self.coordinator.data:
-            return None
+        """Return None - statistics are imported manually, not from state.
 
-        # Find meter data
-        for meter in self.coordinator.data:
-            if str(meter.get("meter_point_id")) == str(self._meter_id):
-                if self._data_key == "import":
-                    value = meter.get("total_plus")
-                else:  # export
-                    value = meter.get("total_minus")
-
-                if value is not None:
-                    try:
-                        return float(value)
-                    except (ValueError, TypeError):
-                        return None
+        CRITICAL: Do NOT return total_plus/total_minus here!
+        If we return a value, HA Recorder will auto-create statistics
+        with state=value and sum=0, causing massive spikes on Energy Dashboard.
+        """
         return None
 
     @property

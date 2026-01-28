@@ -160,28 +160,35 @@ class EnergaAPI:
         return result
 
     async def async_get_hourly_statistics(
-        self, meter_point_id: str, days_back: int = 2
+        self, meter_point_id: str, start_date: datetime = None
     ):
-        """Fetch hourly statistics for last N days in StatisticData format.
+        """Fetch hourly data from start_date to now (smart fetch).
 
-        Uses anchor-based backward calculation:
-        1. Get current total meter readings as anchors
-        2. Collect hourly data for all days
-        3. Work backwards from anchor subtracting hourly values
+        This method only fetches data from start_date forward, enabling
+        incremental updates without re-fetching historical data.
 
         Args:
             meter_point_id: Meter ID to fetch data for
-            days_back: Number of days to fetch (default 2 = 48 hours)
+            start_date: Start datetime (if None, defaults to 30 days ago)
 
         Returns:
-            dict with "import" and "export" keys containing lists of StatisticData dicts
+            dict with "import" and "export" keys containing lists of:
+            {"start": datetime, "state": float (hourly value)}
         """
         from datetime import timedelta
 
         tz = ZoneInfo("Europe/Warsaw")
         now = datetime.now(tz)
 
-        # Get current meter data to use as anchors
+        # Default: 30 days ago if no start_date provided
+        if start_date is None:
+            start_date = now - timedelta(days=30)
+
+        # Ensure start_date is timezone-aware
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=tz)
+
+        # Get current meter data
         meter = next(
             (m for m in self._meters_data if m["meter_point_id"] == meter_point_id),
             None,
@@ -190,21 +197,27 @@ class EnergaAPI:
             _LOGGER.warning("Meter %s not found for statistics", meter_point_id)
             return {"import": [], "export": []}
 
-        anchor_import = float(meter.get("total_plus", 0) or 0)
-        anchor_export = float(meter.get("total_minus", 0) or 0)
+        # Calculate how many days to fetch
+        days_to_fetch = (now.date() - start_date.date()).days + 1
+        days_to_fetch = max(1, min(days_to_fetch, 365))  # Cap at 365 days
 
         _LOGGER.debug(
-            "Statistics anchors for %s: Import=%.3f, Export=%.3f",
+            "Smart fetch for %s: from %s (%d days)",
             meter_point_id,
-            anchor_import,
-            anchor_export,
+            start_date.date(),
+            days_to_fetch,
         )
 
-        # Collect all hourly data points (newest to oldest for backward calc)
+        # Collect hourly data points
         all_points = {"import": [], "export": []}
 
-        for day_offset in range(days_back):  # 0=today, 1=yesterday, etc.
-            target_date = now - timedelta(days=day_offset)
+        for day_offset in range(days_to_fetch):
+            target_date = start_date + timedelta(days=day_offset)
+
+            # Skip future dates
+            if target_date.date() > now.date():
+                break
+
             day_data = await self.async_get_history_hourly(meter_point_id, target_date)
 
             day_start = target_date.replace(
@@ -215,158 +228,40 @@ class EnergaAPI:
             for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
                 if hourly_value and hourly_value > 0:
                     hour_dt = day_start + timedelta(hours=hour_idx + 1)
-                    all_points["import"].append({"dt": hour_dt, "value": hourly_value})
+                    # Only include points after start_date
+                    if hour_dt >= start_date:
+                        all_points["import"].append(
+                            {
+                                "start": hour_dt,
+                                "state": hourly_value,
+                            }
+                        )
 
             # Process export hours
             for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
                 if hourly_value and hourly_value > 0:
                     hour_dt = day_start + timedelta(hours=hour_idx + 1)
-                    all_points["export"].append({"dt": hour_dt, "value": hourly_value})
-
-        result = {"import": [], "export": []}
-
-        # Build import statistics (forward - cumulative sum)
-        if all_points["import"]:
-            all_points["import"].sort(key=lambda x: x["dt"])  # Oldest first
-
-            # INTELLIGENT INITIALIZATION: Query last sum from database
-            # This allows:  - Incremental updates (continue from last)
-            #              - First imports (calculate proper base)
-            #              - Reimports after clear_stats
-            running_sum = 0.0  # Default fallback
-
-            try:
-                from homeassistant.components.recorder.statistics import (
-                    get_last_statistics,
-                )
-
-                # Get serial for entity_id (passed via kwargs if available)
-                meter_serial = meter.get("meter_serial", meter_point_id)
-                entity_id = f"sensor.energa_{meter_serial}_energa_zuzycie"
-
-                # Query last statistics from database (async_add_executor_job needed)
-                if hasattr(self, "_hass"):  # hass reference if available
-                    last_stats = await self._hass.async_add_executor_job(
-                        get_last_statistics, self._hass, 1, entity_id, True, {"sum"}
-                    )
-
-                    if entity_id in last_stats and last_stats[entity_id]:
-                        last_sum = last_stats[entity_id][0].get("sum")
-                        if last_sum is not None:
-                            # INCREMENTAL UPDATE: Continue from last known sum
-                            running_sum = last_sum
-                            _LOGGER.debug(
-                                "Statistics: Continuing from last sum=%.3f for %s",
-                                running_sum,
-                                entity_id,
-                            )
-                        else:
-                            # FIRST IMPORT: Calculate base so final sum = anchor
-                            total_to_import = sum(
-                                p["value"] for p in all_points["import"]
-                            )
-                            running_sum = anchor_import - total_to_import
-                            _LOGGER.info(
-                                "Statistics: First import for %s, base=%.3f (anchor=%.3f - import=%.3f)",
-                                entity_id,
-                                running_sum,
-                                anchor_import,
-                                total_to_import,
-                            )
-                    else:
-                        # No previous statistics - calculate base
-                        total_to_import = sum(p["value"] for p in all_points["import"])
-                        running_sum = anchor_import - total_to_import
-                        _LOGGER.info(
-                            "Statistics: No previous data for %s, base=%.3f",
-                            entity_id,
-                            running_sum,
+                    if hour_dt >= start_date:
+                        all_points["export"].append(
+                            {
+                                "start": hour_dt,
+                                "state": hourly_value,
+                            }
                         )
-                else:
-                    # No hass reference - fallback (shouldn't happen in normal flow)
-                    _LOGGER.warning(
-                        "No hass reference for statistics query, using 0.0 base"
-                    )
-                    running_sum = 0.0
-            except Exception as e:
-                # Fallback on error - use old behavior
-                _LOGGER.warning("Failed to query statistics, using fallback: %s", e)
-                running_sum = 0.0
 
-            for point in all_points["import"]:
-                running_sum += point["value"]
-                result["import"].append(
-                    {"start": point["dt"], "sum": running_sum, "state": point["value"]}
-                )
+        # Sort by time (oldest first)
+        all_points["import"].sort(key=lambda x: x["start"])
+        all_points["export"].sort(key=lambda x: x["start"])
 
-        # Build export statistics (forward - cumulative sum)
-        if all_points["export"]:
-            all_points["export"].sort(key=lambda x: x["dt"])  # Oldest first
-
-            # Same intelligent initialization for export
-            running_sum = 0.0
-
-            try:
-                from homeassistant.components.recorder.statistics import (
-                    get_last_statistics,
-                )
-
-                meter_serial = meter.get("meter_serial", meter_point_id)
-                entity_id = f"sensor.energa_{meter_serial}_energa_produkcja"
-
-                if hasattr(self, "_hass"):
-                    last_stats = await self._hass.async_add_executor_job(
-                        get_last_statistics, self._hass, 1, entity_id, True, {"sum"}
-                    )
-
-                    if entity_id in last_stats and last_stats[entity_id]:
-                        last_sum = last_stats[entity_id][0].get("sum")
-                        if last_sum is not None:
-                            running_sum = last_sum
-                            _LOGGER.debug(
-                                "Statistics: Continuing from last sum=%.3f for %s",
-                                running_sum,
-                                entity_id,
-                            )
-                        else:
-                            total_to_import = sum(
-                                p["value"] for p in all_points["export"]
-                            )
-                            running_sum = anchor_export - total_to_import
-                            _LOGGER.info(
-                                "Statistics: First import for %s, base=%.3f",
-                                entity_id,
-                                running_sum,
-                            )
-                    else:
-                        total_to_import = sum(p["value"] for p in all_points["export"])
-                        running_sum = anchor_export - total_to_import
-                        _LOGGER.info(
-                            "Statistics: No previous data for %s, base=%.3f",
-                            entity_id,
-                            running_sum,
-                        )
-            except Exception as e:
-                _LOGGER.warning(
-                    "Failed to query export statistics, using fallback: %s", e
-                )
-                running_sum = 0.0
-
-            for point in all_points["export"]:
-                running_sum += point["value"]
-                result["export"].append(
-                    {"start": point["dt"], "sum": running_sum, "state": point["value"]}
-                )
-
-        _LOGGER.debug(
-            "Hourly statistics for %s (last %d days): Import=%d points, Export=%d points",
+        _LOGGER.info(
+            "Smart fetch for %s: %d import, %d export points (from %s)",
             meter_point_id,
-            days_back,
-            len(result["import"]),
-            len(result["export"]),
+            len(all_points["import"]),
+            len(all_points["export"]),
+            start_date.date(),
         )
 
-        return result
+        return all_points
 
     async def _fetch_all_meters(self):
         data = await self._api_get(DATA_ENDPOINT)

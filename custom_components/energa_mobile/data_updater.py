@@ -7,12 +7,10 @@ No blocking database calls - uses pre-fetched stats from Coordinator.
 """
 
 import logging
-from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.util import dt as dt_util
 
 from .const import CONF_IMPORT_PRICE, CONF_EXPORT_PRICE, DOMAIN
 
