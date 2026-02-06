@@ -13,6 +13,7 @@ __pycache__/
 .coverage
 .pytest_cache
 .lab_credentials
+mcp_key*
 reports
 *.egg-info
 .renovate-cache
