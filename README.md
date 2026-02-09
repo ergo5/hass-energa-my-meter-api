@@ -2,18 +2,34 @@
   <img src="logo.png" alt="Energa Mobile API Logo" width="300"/>
 </div>
 
-<h1 align="center">Energa Mobile Integration for Home Assistant</h1>
+<h1 align="center">Energa My Meter API Integration for Home Assistant</h1>
 
 
 ![Version](https://img.shields.io/badge/version-v4.3.6-green)
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+![API](https://img.shields.io/badge/data_source-Native_API-blue?logo=fastapi)
 
-A robust integration for **Energa Operator** in Home Assistant. It downloads data from the "Mój Licznik" service (Energa Operator) and integrates seamlessly with the **Energy Dashboard**. Features **self-healing history import**, **automatic cost calculation**, and correct cumulative statistics.
+A robust integration for **Energa Operator** in Home Assistant that communicates via the **native API** — **not web scraping**. It retrieves data directly from the "Mój Licznik" API and integrates seamlessly with the **Energy Dashboard**. Features **self-healing history import**, **automatic cost calculation**, and correct cumulative statistics.
+
+---
+
+## 📡 Native API
+
+This integration communicates directly with Energa's **native REST API** (`api-mojlicznik.energa-operator.pl`).
+
+*   🔗 **Direct API communication** — lightweight JSON responses, no HTML parsing
+*   🔐 **Token-based authentication** with automatic session refresh
+*   📦 **Structured data** — precise meter readings and hourly charts straight from the source
+*   🔄 **Stable interface** — based on the mobile app backend, not website layout
+
+> [!TIP]
+> For technical details about the API endpoints, see [ENERGA_API_REFERENCE.md](docs/ENERGA_API_REFERENCE.md).
 
 ---
 
 ## ✨ Key Features
 
+*   **📡 Native API:** Direct communication with Energa's REST API — no HTML parsing, stable JSON interface.
 *   **📊 Energy Dashboard Ready:** Dedicated sensors (`Panel Energia`) designed specifically for correct statistics.
 *   **💰 Automatic Cost Calculation:** Calculates energy costs in PLN based on configured prices.
 *   **🛡️ Anchor-Based Statistics:** Calculates history backwards from the current meter reading to guarantee perfect data continuity.
