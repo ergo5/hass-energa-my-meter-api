@@ -9,6 +9,9 @@
   "integration_type": "device",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/ergo5/hass-energa-my-meter-api/issues",
+  "after_dependencies": [
+    "recorder"
+  ],
   "requirements": [],
   "version": "4.3.6"
 }
