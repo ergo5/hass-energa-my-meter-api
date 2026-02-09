@@ -2,7 +2,7 @@
     "config": {
         "step": {
             "user": {
-                "title": "Logowanie do Energa Mobile",
+                "title": "Logowanie do Energa My Meter",
                 "description": "Podaj dane logowania do Mój Licznik. Integracja sama wykryje kody OBIS i liczniki.",
                 "data": {
                     "username": "Login (email)",

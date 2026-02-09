@@ -2,7 +2,7 @@
     "config": {
         "step": {
             "user": {
-                "title": "Energa Mobile Login",
+                "title": "Energa My Meter Login",
                 "description": "Enter credentials for Mój Licznik. Meters and OBIS codes will be auto-detected.",
                 "data": {
                     "username": "Username (email)",

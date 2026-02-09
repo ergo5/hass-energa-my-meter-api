@@ -3,8 +3,7 @@
   "domain": "energa_mobile",
   "render_readme": true,
   "country": [
-    "PL",
-    "GB"
+    "PL"
   ],
   "documentation": "https://github.com/ergo5/hass-energa-my-meter-api",
   "requirements": [],
