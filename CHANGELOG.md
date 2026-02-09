@@ -1,5 +1,51 @@
 # Changelog
 
+## v4.3.6 (2026-02-06) - HACS Compliance Release
+
+- Documentation: Native API emphasis in README, English API reference
+- Security: Removed sensitive keys and credentials from repository
+- Branding: Updated logo and icon to Energa | GRUPA ORLEN identity
+- Submitted to HACS default repository (PR #5416)
+
+## v4.3.5 (2026-01-28) - Energy Dashboard Spike Fix
+
+- Synced LAB-verified code to fix remaining Energy Dashboard spikes
+- Validated on both prosumer and consumer accounts
+
+## v4.3.4 (2026-01-27) - StatisticsBuilder
+
+- Added `StatisticsBuilder` class for incremental sum calculation
+- Prevents negative statistics spikes caused by backup/restore cycles
+- Anchor-based backward calculation from current meter reading
+
+## v4.3.3 (2026-01-26) - Negative Statistics Fix
+
+- Resolved negative statistics appearing in Energy Dashboard
+- Root cause: sum resets after HA backup restoration
+- Statistics now rebuild cleanly from meter totals
+
+## v4.2.4 (2026-01-25) - Entity ID Pattern Fix
+
+- Corrected `entity_id` pattern in history import to match PROD sensors
+- Changed from `energa_zuzycie` to `panel_energia_zuzycie` pattern
+
+## v4.2.3 (2025-12-28) - State Class Restoration
+
+- Restored `state_class` for Energy Dashboard compatibility
+
+## v4.2.2 (2025-12-28) - Entity Filter Fix
+
+- Corrected entity_id filter to match `panel_energia_` pattern
+- Removed incorrect `_stats` requirement from clear_stats filter
+
+## v4.2.1 (2025-12-27) - Statistics Initialization
+
+- Simplified statistics fix with forward calculation in `build_statistics`
+- Removed `state_class` from Panel Energia sensors to prevent UNIQUE constraint errors
+- Accepted history catch-up spike as expected behavior on first import
+
+---
+
 ## v4.2.0 (2025-12-27) - Cost Statistics Fixes & Documentation
 
 > **Note:** This is a **minor release** after v4.1.0, including critical bugfixes and comprehensive documentation improvements.

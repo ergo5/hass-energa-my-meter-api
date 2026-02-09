@@ -1,11 +1,11 @@
 <div align="center">
-  <img src="logo.png" alt="Energa Mobile API Logo" width="300"/>
+  <img src="logo.png" alt="Energa My Meter API Logo" width="300"/>
 </div>
 
 <h1 align="center">Energa My Meter API Integration for Home Assistant</h1>
 
 
-![Version](https://img.shields.io/badge/version-v4.3.6-green)
+![GitHub Release](https://img.shields.io/github/v/release/ergo5/hass-energa-my-meter-api)
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 ![API](https://img.shields.io/badge/data_source-Native_API-blue?logo=fastapi)
 
@@ -20,7 +20,7 @@ This integration communicates directly with Energa's **native REST API** (`api-m
 *   🔗 **Direct API communication** — lightweight JSON responses, no HTML parsing
 *   🔐 **Token-based authentication** with automatic session refresh
 *   📦 **Structured data** — precise meter readings and hourly charts straight from the source
-*   🔄 **Stable interface** — based on the mobile app backend, not website layout
+*   🔄 **Stable interface** — based on a structured API backend, not website layout
 
 > [!TIP]
 > For technical details about the API endpoints, see [ENERGA_API_REFERENCE.md](docs/ENERGA_API_REFERENCE.md).
@@ -59,11 +59,11 @@ The integration **automatically calculates energy costs** and displays them in t
 1.  Open **HACS** -> **Integrations** -> **Custom repositories**.
 2.  Add URL: `https://github.com/ergo5/hass-energa-my-meter-api`
 3.  Category: **Integration**.
-4.  Install **Energa Mobile Integration** and restart Home Assistant.
+4.  Install **Energa My Meter** and restart Home Assistant.
 
 ### Configuration
 1.  Go to **Settings** -> **Devices & Services**.
-2.  Add Integration -> Search for **Energa Mobile**.
+2.  Add Integration -> Search for **Energa My Meter**.
 3.  Login With your **Energa Mój Licznik** credentials.
 
 ---
@@ -72,7 +72,7 @@ The integration **automatically calculates energy costs** and displays them in t
 
 To enable cost calculation, you must configure energy prices:
 
-1. Go to **Settings** → **Devices & Services** → **Energa Mobile**
+1. Go to **Settings** → **Devices & Services** → **Energa My Meter**
 2. Click **Configure** (three dots menu)
 3. Select **"Set Energy Prices"** (Ustaw Ceny Energii)
 4. Enter your prices:
@@ -164,7 +164,7 @@ When adding energy sources to the Energy Dashboard:
 
 Use this feature if you have missing data OR if you see incorrect spikes in your Energy Dashboard.
 
-1.  Go to **Settings** -> **Devices & Services** -> **Energa Mobile** -> **Configure**.
+1.  Go to **Settings** -> **Devices & Services** -> **Energa My Meter** -> **Configure**.
 2.  Select **"Download History"** (Pobierz Historię Danych).
 3.  Choose a **Start Date** (e.g., 30 days ago).
 4.  Click **Submit**.
@@ -194,11 +194,11 @@ If you see errors like "Token expired, attempting re-login" or frequent authenti
 
 1. **Update to v4.2.0 or newer** (skip if already on latest):
    - Open **HACS** → **Integrations** 
-   - Find **Energa Mobile** → Click **Update** (or **Redownload**)
+   - Find **Energa My Meter** → Click **Update** (or **Redownload**)
    - Restart Home Assistant
 
 2. **Remove and re-add configuration**:
-   - Go to **Settings** → **Devices & Services** → **Energa Mobile**
+   - Go to **Settings** → **Devices & Services** → **Energa My Meter**
    - Click the **3 dots** → **Delete**
    - Add the integration again with your credentials
 
@@ -211,7 +211,7 @@ If you see errors like "Token expired, attempting re-login" or frequent authenti
 
 ### Cost Not Showing in Energy Dashboard?
 
-1. **Verify prices are configured:** Settings → Energa Mobile → Configure → Set Energy Prices
+1. **Verify prices are configured:** Settings → Energa My Meter → Configure → Set Energy Prices
 2. **Check cost sensors exist:** Look for `*_cost` sensors in entity list
 3. **Ensure correct mapping:** Cost sensor must match energy sensor (e.g., `zuzycie` with `zuzycie_cost`)
 
