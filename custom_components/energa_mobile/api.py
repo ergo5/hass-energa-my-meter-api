@@ -62,6 +62,7 @@ class EnergaAPI:
                 "password": self._password,
                 "token": self._device_token,
             }
+            # ssl=False: Energa API occasionally has certificate chain issues
             async with self._session.get(
                 f"{BASE_URL}{LOGIN_ENDPOINT}", headers=HEADERS, params=params, ssl=False
             ) as resp:
@@ -69,7 +70,7 @@ class EnergaAPI:
                     raise EnergaConnectionError(f"Login HTTP {resp.status}")
                 try:
                     data = await resp.json()
-                except:
+                except (ValueError, TypeError, aiohttp.ContentTypeError):
                     raise EnergaConnectionError("Invalid JSON")
                 if not data.get("success"):
                     raise EnergaAuthError("Invalid credentials (API success=False)")
@@ -79,11 +80,13 @@ class EnergaAPI:
                     "token"
                 )
                 _LOGGER.info(
-                    f"Login successful. Token received: {bool(self._token)}, Cookies: {len(self._session.cookie_jar)}"
+                    "Login successful. Token received: %s, Cookies: %d",
+                    bool(self._token),
+                    len(self._session.cookie_jar),
                 )
                 return True
         except aiohttp.ClientError as err:
-            _LOGGER.error(f"Login network error: {err}")
+            _LOGGER.error("Login network error: %s", err)
             raise EnergaConnectionError from err
 
     async def async_get_data(self, force_refresh: bool = False) -> list[dict]:
@@ -115,7 +118,12 @@ class EnergaAPI:
                 m_data["daily_produkcja"] = sum(vals)
 
             _LOGGER.debug(
-                f"Energa Meter [{m_data.get('meter_serial')}]: Total(+)={m_data.get('total_plus')}, Total(-)={m_data.get('total_minus')}, Daily(+)={m_data.get('daily_pobor')}, Daily(-)={m_data.get('daily_produkcja')}"
+                "Energa Meter [%s]: Total(+)=%s, Total(-)=%s, Daily(+)=%s, Daily(-)=%s",
+                m_data.get("meter_serial"),
+                m_data.get("total_plus"),
+                m_data.get("total_minus"),
+                m_data.get("daily_pobor"),
+                m_data.get("daily_produkcja"),
             )
             updated_meters.append(m_data)
         self._meters_data = updated_meters
@@ -154,7 +162,11 @@ class EnergaAPI:
             )
 
         _LOGGER.debug(
-            f"History {date.date()} (ts={ts}): Import={len(result['import'])} pts, Export={len(result['export'])} pts"
+            "History %s (ts=%s): Import=%d pts, Export=%d pts",
+            date.date(),
+            ts,
+            len(result["import"]),
+            len(result["export"]),
         )
 
         return result
@@ -302,7 +314,7 @@ class EnergaAPI:
                 start_ts = ag.get("dealer", {}).get("start")
                 if start_ts:
                     c_date = datetime.fromtimestamp(int(start_ts) / 1000).date()
-            except:
+            except (ValueError, TypeError, OSError):
                 pass
 
             meter_obj = {
@@ -354,7 +366,7 @@ class EnergaAPI:
         except EnergaTokenExpiredError:
             raise  # Propagate to coordinator for re-login
         except Exception as e:
-            _LOGGER.error(f"Error fetching chart for {meter_id}: {e}")
+            _LOGGER.error("Error fetching chart for %s: %s", meter_id, e)
             return []
 
     async def _api_get(self, path, params=None):
@@ -364,6 +376,7 @@ class EnergaAPI:
         if self._token and "token" not in final_params:
             final_params["token"] = self._token
 
+        # ssl=False: Energa API occasionally has certificate chain issues
         async with self._session.get(
             url, headers=HEADERS, params=final_params, ssl=False
         ) as resp:

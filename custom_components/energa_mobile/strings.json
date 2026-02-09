@@ -1,0 +1,84 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Energa My Meter Login",
+                "description": "Enter credentials for Mój Licznik. Meters and OBIS codes will be auto-detected.",
+                "data": {
+                    "username": "Username (email)",
+                    "password": "Password"
+                }
+            },
+            "reauth_confirm": {
+                "title": "Update Password",
+                "description": "Re-login for account {username}.",
+                "data": {
+                    "password": "New Password"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Connection error",
+            "invalid_auth": "Invalid authentication",
+            "unknown": "Unknown error"
+        },
+        "abort": {
+            "already_configured": "Account already configured",
+            "reauth_successful": "Password updated successfully"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "menu_options": {
+                    "credentials": "Change Credentials",
+                    "prices": "Set Energy Prices",
+                    "history": "Download History",
+                    "clear_stats": "Clear Energy Panel Statistics"
+                }
+            },
+            "credentials": {
+                "title": "Update Credentials",
+                "data": {
+                    "username": "Username",
+                    "password": "New Password"
+                }
+            },
+            "prices": {
+                "title": "Energy Prices",
+                "description": "Set energy prices for cost calculation in Energy Panel.",
+                "data": {
+                    "import_price": "Price per kWh (consumption) [PLN]",
+                    "export_price": "Rate per kWh (production) [PLN]"
+                }
+            },
+            "history": {
+                "title": "Download History",
+                "description": "**Contract Date:** {contract_date}\n\nSelect start date. Data download runs in background for all meters.",
+                "data": {
+                    "start_date": "Start Date"
+                }
+            },
+            "clear_stats": {
+                "title": "Clear Statistics",
+                "description": "{warning}\n\nDo you want to continue?"
+            }
+        }
+    },
+    "services": {
+        "fetch_history": {
+            "name": "Fetch history",
+            "description": "Fetches historical hourly data from the Energa API.",
+            "fields": {
+                "start_date": {
+                    "name": "Start date",
+                    "description": "Date to start fetching from (format YYYY-MM-DD)."
+                },
+                "days": {
+                    "name": "Number of days",
+                    "description": "How many days to fetch (default 30)."
+                }
+            }
+        }
+    }
+}

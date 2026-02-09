@@ -597,8 +597,12 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        """Sensor is available when we have data."""
-        return self.coordinator.data is not None and self.native_value is not None
+        """Statistics sensor is available when coordinator has data.
+
+        Note: native_value intentionally returns None (statistics are imported
+        via async_import_statistics, not from sensor state).
+        """
+        return self.coordinator.data is not None
 
     @override
     @callback

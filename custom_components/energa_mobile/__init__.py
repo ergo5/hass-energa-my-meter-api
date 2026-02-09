@@ -8,13 +8,13 @@ Clean rebuild with simplified architecture:
 
 import asyncio
 import logging
+import secrets
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import voluptuous as vol
 from homeassistant.components import persistent_notification
 from homeassistant.components.recorder.models import (
-    StatisticData,
     StatisticMeanType,
     StatisticMetaData,
 )
@@ -22,7 +22,6 @@ from homeassistant.components.recorder.statistics import async_import_statistics
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
@@ -52,8 +51,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
 
     # Get device token from config (may not exist in old installations)
-    import secrets
-
     device_token = entry.data.get(CONF_DEVICE_TOKEN) or secrets.token_hex(32)
     api = EnergaAPI(
         entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD], device_token, session
