@@ -40,3 +40,7 @@ test_*.py
 compare_*.py
 .vscode/
 README_backup.md
+*.code-workspace
+tests/
+tools/
+brand_assets/PR_DESCRIPTION.md
