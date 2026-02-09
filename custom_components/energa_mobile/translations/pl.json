@@ -64,5 +64,21 @@
                 "description": "{warning}\n\nCzy chcesz kontynuować?"
             }
         }
+    },
+    "services": {
+        "fetch_history": {
+            "name": "Pobierz historię",
+            "description": "Pobiera historyczne dane godzinowe z API Energi.",
+            "fields": {
+                "start_date": {
+                    "name": "Data początkowa",
+                    "description": "Data, od której rozpocząć pobieranie (format RRRR-MM-DD)."
+                },
+                "days": {
+                    "name": "Liczba dni",
+                    "description": "Ile dni pobrać (domyślnie 30)."
+                }
+            }
+        }
     }
 }

@@ -1,4 +1,4 @@
-"""Config flow for Energa Mobile integration v4.0."""
+"""Config flow for Energa My Meter integration."""
 
 import logging
 import secrets
@@ -24,7 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle config flow for Energa Mobile."""
+    """Handle config flow for Energa My Meter."""
 
     VERSION = 1
 
@@ -123,7 +123,7 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class EnergaOptionsFlow(config_entries.OptionsFlow):
-    """Handle options flow for Energa Mobile."""
+    """Handle options flow for Energa My Meter."""
 
     def __init__(self, config_entry):
         """Initialize options flow."""

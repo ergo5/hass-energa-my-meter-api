@@ -1,4 +1,4 @@
-"""API interface for Energa Mobile v3.7.0-dev."""
+"""API interface for Energa My Meter."""
 
 import logging
 from datetime import datetime
@@ -27,7 +27,7 @@ class EnergaConnectionError(Exception):
 
 
 class EnergaTokenExpiredError(Exception):
-    pass  # <-- DODANY WYJĄTEK
+    pass
 
 
 class EnergaAPI:

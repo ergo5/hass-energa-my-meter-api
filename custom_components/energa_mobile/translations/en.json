@@ -64,5 +64,21 @@
                 "description": "{warning}\n\nDo you want to continue?"
             }
         }
+    },
+    "services": {
+        "fetch_history": {
+            "name": "Fetch history",
+            "description": "Fetches historical hourly data from the Energa API.",
+            "fields": {
+                "start_date": {
+                    "name": "Start date",
+                    "description": "Date to start fetching from (format YYYY-MM-DD)."
+                },
+                "days": {
+                    "name": "Number of days",
+                    "description": "How many days to fetch (default 30)."
+                }
+            }
+        }
     }
 }

@@ -1,4 +1,4 @@
-"""Sensor platform for Energa Mobile v4.0.0.
+"""Sensor platform for Energa My Meter.
 
 Clean rebuild based on thedeemling/hass-energa-my-meter architecture.
 Implements invisible statistics sensors for Energy Dashboard integration.
@@ -230,7 +230,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
-            name="Energa Mobile",
+            name="Energa My Meter",
             update_interval=timedelta(hours=1),  # Hourly updates
         )
         self.api = api
@@ -302,10 +302,11 @@ class EnergaCoordinator(DataUpdateCoordinator):
         Returns:
             datetime: Start date for fetching (last_stat + 1h, or 30 days ago)
         """
+        from datetime import datetime as dt_datetime
+
         from homeassistant.components.recorder.statistics import get_last_statistics
         from homeassistant.helpers import entity_registry as er
         from homeassistant.util import dt as dt_util
-        from datetime import datetime as dt_datetime
 
         tz = ZoneInfo("Europe/Warsaw")
         now = dt_datetime.now(tz)

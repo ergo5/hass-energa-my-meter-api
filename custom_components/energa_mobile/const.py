@@ -1,4 +1,4 @@
-"""Constants for Energa Mobile integration v4.0."""
+"""Constants for Energa My Meter integration."""
 
 DOMAIN = "energa_mobile"
 CONF_USERNAME = "username"

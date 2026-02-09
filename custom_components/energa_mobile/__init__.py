@@ -1,4 +1,4 @@
-"""Energa Mobile integration v4.0.0.
+"""Energa My Meter integration.
 
 Clean rebuild with simplified architecture:
 - Statistics sensors only (for Energy Dashboard)
@@ -48,7 +48,7 @@ UTC = ZoneInfo("UTC")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Energa Mobile from config entry."""
+    """Set up Energa My Meter from config entry."""
     session = async_get_clientsession(hass)
 
     # Get device token from config (may not exist in old installations)
