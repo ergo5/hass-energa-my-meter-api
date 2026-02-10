@@ -386,4 +386,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
+        # Unregister service if no more entries remain
+        if not hass.data[DOMAIN]:
+            hass.services.async_remove(DOMAIN, "fetch_history")
     return unload_ok

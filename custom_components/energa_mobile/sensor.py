@@ -283,10 +283,16 @@ class EnergaCoordinator(DataUpdateCoordinator):
             return active_meters
 
         except EnergaTokenExpiredError:
+            if getattr(self, "_retrying", False):
+                raise UpdateFailed("Token expired again after re-login")
             _LOGGER.warning("Token expired, attempting re-login")
             try:
                 await self.api.async_login()
-                return await self._async_update_data()
+                self._retrying = True
+                try:
+                    return await self._async_update_data()
+                finally:
+                    self._retrying = False
             except EnergaAuthError as err:
                 raise UpdateFailed(f"Auth error after token refresh: {err}") from err
 

@@ -62,9 +62,8 @@ class EnergaAPI:
                 "password": self._password,
                 "token": self._device_token,
             }
-            # ssl=False: Energa API occasionally has certificate chain issues
             async with self._session.get(
-                f"{BASE_URL}{LOGIN_ENDPOINT}", headers=HEADERS, params=params, ssl=False
+                f"{BASE_URL}{LOGIN_ENDPOINT}", headers=HEADERS, params=params
             ) as resp:
                 if resp.status != 200:
                     raise EnergaConnectionError(f"Login HTTP {resp.status}")
@@ -376,10 +375,7 @@ class EnergaAPI:
         if self._token and "token" not in final_params:
             final_params["token"] = self._token
 
-        # ssl=False: Energa API occasionally has certificate chain issues
-        async with self._session.get(
-            url, headers=HEADERS, params=final_params, ssl=False
-        ) as resp:
+        async with self._session.get(url, headers=HEADERS, params=final_params) as resp:
             # Handle 401/403 which might indicate session expiry or invalid token
             if resp.status == 401 or resp.status == 403:
                 raise EnergaTokenExpiredError(f"API returned {resp.status} for {url}")

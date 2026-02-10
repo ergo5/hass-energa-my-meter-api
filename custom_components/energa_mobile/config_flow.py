@@ -4,13 +4,14 @@ import logging
 import secrets
 from datetime import datetime
 
+import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import EnergaAPI, EnergaAuthError
+from .api import EnergaAPI, EnergaAuthError, EnergaConnectionError
 from .const import (
     CONF_DEVICE_TOKEN,
     CONF_EXPORT_PRICE,
@@ -62,8 +63,11 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             except EnergaAuthError:
                 errors["base"] = "invalid_auth"
-            except Exception:
+            except (EnergaConnectionError, aiohttp.ClientError, TimeoutError):
                 errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during setup")
+                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="user",
@@ -109,8 +113,11 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="reauth_successful")
             except EnergaAuthError:
                 errors["base"] = "invalid_auth"
-            except Exception:
+            except (EnergaConnectionError, aiohttp.ClientError, TimeoutError):
                 errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during reauth")
+                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="reauth_confirm",
@@ -166,8 +173,11 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data={})
             except EnergaAuthError:
                 errors["base"] = "invalid_auth"
-            except Exception:
+            except (EnergaConnectionError, aiohttp.ClientError, TimeoutError):
                 errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during credential update")
+                errors["base"] = "unknown"
 
         current_user = self._config_entry.data.get(CONF_USERNAME)
         return self.async_show_form(
