@@ -9,6 +9,8 @@
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 ![API](https://img.shields.io/badge/data_source-Native_API-blue?logo=fastapi)
 
+🇵🇱 This integration is designed for customers of **Energa Operator** — a regional electricity distributor serving **northern Poland** (Pomorze, Warmia-Mazury, Kujawsko-Pomorskie).
+
 A robust integration for **Energa Operator** in Home Assistant that communicates via the **native API** — **not web scraping**. It retrieves data directly from the "Mój Licznik" API and integrates seamlessly with the **Energy Dashboard**. Features **self-healing history import**, **automatic cost calculation**, and correct cumulative statistics.
 
 ---
