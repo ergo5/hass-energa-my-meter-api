@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.3.9 (2026-02-11) - Hour Offset Fix
+
+- Fixed: Hourly statistics were shifted +1 hour compared to Energa app
+- API index 0 = 00:00-01:00, was incorrectly mapped to 01:00 (now correctly maps to 00:00)
+- Affects: Energy Dashboard hourly bars, Panel Energia statistics
+- After update: clear statistics and reimport history (30 days) for correct alignment
+
 ## v4.3.8 (2026-02-11) - Session Isolation Fix
 
 - Fixed: Use dedicated HTTP session instead of shared HA session

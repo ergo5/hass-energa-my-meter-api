@@ -238,7 +238,7 @@ class EnergaAPI:
             # Process import hours
             for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
                 if hourly_value and hourly_value > 0:
-                    hour_dt = day_start + timedelta(hours=hour_idx + 1)
+                    hour_dt = day_start + timedelta(hours=hour_idx)
                     # Only include points after start_date
                     if hour_dt >= start_date:
                         all_points["import"].append(
@@ -251,7 +251,7 @@ class EnergaAPI:
             # Process export hours
             for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
                 if hourly_value and hourly_value > 0:
-                    hour_dt = day_start + timedelta(hours=hour_idx + 1)
+                    hour_dt = day_start + timedelta(hours=hour_idx)
                     if hour_dt >= start_date:
                         all_points["export"].append(
                             {

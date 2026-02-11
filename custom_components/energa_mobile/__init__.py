@@ -239,7 +239,7 @@ async def _import_meter_history(
             # Process import data
             for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
                 if hourly_value and hourly_value >= 0:
-                    hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx + 1))
+                    hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
                     import_points.append(
                         {
                             "dt": hour_dt,
@@ -250,7 +250,7 @@ async def _import_meter_history(
             # Process export data
             for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
                 if hourly_value and hourly_value >= 0:
-                    hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx + 1))
+                    hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
                     export_points.append(
                         {
                             "dt": hour_dt,
