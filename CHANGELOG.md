@@ -1,5 +1,16 @@
 # Changelog
 
+## v4.3.8 (2026-02-11) - Session Isolation Fix
+
+- Fixed: Use dedicated HTTP session instead of shared HA session
+- Prevents `cookie_jar.clear()` from affecting other integrations
+- Session properly closed on entry unload and HA shutdown
+
+## v4.3.7 (2026-02-10) - HACS Validation Fix
+
+- Fixed: Removed extra keys from `hacs.json` (only `name`, `render_readme`, `country` allowed)
+- Version bump for clean release tag
+
 ## v4.3.6 (2026-02-06) - HACS Compliance Release
 
 - Documentation: Native API emphasis in README, English API reference
