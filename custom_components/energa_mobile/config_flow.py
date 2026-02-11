@@ -230,7 +230,8 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         """Handle history import from options."""
         from . import _import_meter_history
 
-        api = self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id)
+        entry_data = self.hass.data.get(DOMAIN, {}).get(self._config_entry.entry_id, {})
+        api = entry_data.get("api") if isinstance(entry_data, dict) else entry_data
         if not api:
             return self.async_abort(reason="integration_not_ready")
 

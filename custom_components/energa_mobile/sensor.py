@@ -46,7 +46,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Energa sensors from config entry."""
-    api = hass.data[DOMAIN][entry.entry_id]
+    api = hass.data[DOMAIN][entry.entry_id]["api"]
 
     # Get integration version for device info
     integration = await async_get_integration(hass, DOMAIN)

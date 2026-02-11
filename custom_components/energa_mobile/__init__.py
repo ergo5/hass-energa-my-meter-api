@@ -9,11 +9,14 @@ Clean rebuild with simplified architecture:
 import asyncio
 import logging
 import secrets
+
+import aiohttp
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import voluptuous as vol
 from homeassistant.components import persistent_notification
+from homeassistant.const import EVENT_HOMEASSISTANT_CLOSE
 from homeassistant.components.recorder.models import (
     StatisticMeanType,
     StatisticMetaData,
@@ -22,7 +25,6 @@ from homeassistant.components.recorder.statistics import async_import_statistics
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
 from .api import (
@@ -48,7 +50,8 @@ UTC = ZoneInfo("UTC")
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Energa My Meter from config entry."""
-    session = async_get_clientsession(hass)
+    # Use dedicated session to avoid clearing cookies on the shared HA session
+    session = aiohttp.ClientSession()
 
     # Get device token from config (may not exist in old installations)
     device_token = entry.data.get(CONF_DEVICE_TOKEN) or secrets.token_hex(32)
@@ -74,7 +77,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Store API instance
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = api
+    hass.data[DOMAIN][entry.entry_id] = {"api": api, "session": session}
+
+    # Close session when HA shuts down
+    async def _close_session(_event):
+        await session.close()
+
+    entry.async_on_unload(
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_CLOSE, _close_session)
+    )
 
     # Set hass reference for statistics queries
     api.set_hass(hass)
@@ -385,7 +396,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        entry_data = hass.data[DOMAIN].pop(entry.entry_id)
+        # Close dedicated session
+        if isinstance(entry_data, dict) and "session" in entry_data:
+            await entry_data["session"].close()
         # Unregister service if no more entries remain
         if not hass.data[DOMAIN]:
             hass.services.async_remove(DOMAIN, "fetch_history")
