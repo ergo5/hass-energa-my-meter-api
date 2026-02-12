@@ -108,14 +108,14 @@ class EnergaDataUpdater:
         # Sort oldest first for import
         energy_stats.sort(key=lambda x: x["start"])
 
-        # Build cost statistics (forward, cumulative)
+        # Build cost statistics — derived from energy sum to stay synchronized.
+        # cost_sum = energy_sum × price avoids anchor desynchronization.
         cost_stats = []
-        cost_sum = self._get_cost_anchor(f"{entity_id}_cost", energy_stats, price)
 
         for stat in energy_stats:
             hourly_energy = stat["state"] or 0
             hourly_cost = hourly_energy * price
-            cost_sum += hourly_cost
+            cost_sum = stat["sum"] * price
             cost_stats.append(
                 {
                     "start": stat["start"],
@@ -169,29 +169,6 @@ class EnergaDataUpdater:
         hourly_sum = sum(p.get("value", 0) or 0 for p in sorted_data)
         _LOGGER.debug("Using calculated anchor for %s: %.3f", entity_id, hourly_sum)
         return hourly_sum
-
-    def _get_cost_anchor(
-        self,
-        cost_entity_id: str,
-        energy_stats: list[dict],
-        price: float,
-    ) -> float:
-        """Get starting cost sum.
-
-        If we have pre-fetched stats for cost, use those.
-        Otherwise start from 0 (for initial import).
-        """
-        if cost_entity_id in self._pre_fetched_stats:
-            last_cost = self._pre_fetched_stats[cost_entity_id].get("sum", 0)
-            if last_cost and last_cost > 0:
-                _LOGGER.debug(
-                    "Using pre-fetched cost anchor for %s: %.3f",
-                    cost_entity_id,
-                    last_cost,
-                )
-                return last_cost
-
-        return 0.0
 
     def resolve_entity_id(self, meter_id: str, data_key: str) -> str | None:
         """Resolve entity_id from entity registry.

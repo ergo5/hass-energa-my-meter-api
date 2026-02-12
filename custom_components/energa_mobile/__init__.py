@@ -298,12 +298,11 @@ async def _import_meter_history(
             # Sort oldest first for import
             statistics.sort(key=lambda x: x["start"])
 
-            # Build cost statistics (forward, cumulative)
-            cost_sum = 0.0
+            # Build cost statistics — derived from energy sum × price
             for stat in statistics:
                 hourly_energy = stat["state"] or 0
                 hourly_cost = hourly_energy * price
-                cost_sum += hourly_cost
+                cost_sum = stat["sum"] * price
                 cost_statistics.append(
                     {
                         "start": stat["start"],

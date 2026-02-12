@@ -416,24 +416,6 @@ class EnergaCoordinator(DataUpdateCoordinator):
                                 last_stats[entity_id][0].get("sum", 0),
                             )
 
-                            # Also fetch cost sensor
-                            cost_entity_id = f"{entity_id}_cost"
-                            cost_stats = await self.hass.async_add_executor_job(
-                                get_last_statistics,
-                                self.hass,
-                                1,
-                                cost_entity_id,
-                                True,
-                                {"sum"},
-                            )
-                            if (
-                                cost_entity_id in cost_stats
-                                and cost_stats[cost_entity_id]
-                            ):
-                                self._pre_fetched_stats[cost_entity_id] = cost_stats[
-                                    cost_entity_id
-                                ][0]
-
                     except Exception as err:
                         _LOGGER.debug(
                             "Could not pre-fetch stats for %s: %s", entity_id, err
