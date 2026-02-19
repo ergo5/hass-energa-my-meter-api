@@ -2,6 +2,7 @@
 
 Clean rebuild based on thedeemling/hass-energa-my-meter architecture.
 Implements invisible statistics sensors for Energy Dashboard integration.
+Supports multi-zone tariffs (G12w: strefa 1 + strefa 2).
 """
 
 import logging
@@ -38,6 +39,10 @@ _LOGGER = logging.getLogger(__name__)
 
 # Timezone for Energa data
 TIMEZONE = ZoneInfo("Europe/Warsaw")
+
+# Zone price config keys
+CONF_IMPORT_PRICE_1 = "import_price_1"
+CONF_IMPORT_PRICE_2 = "import_price_2"
 
 
 async def async_setup_entry(
@@ -96,6 +101,7 @@ async def async_setup_entry(
         meter_id = meter["meter_point_id"]
         serial = meter.get("meter_serial", meter_id)
         ppe = meter.get("ppe", meter_id)
+        has_zones = meter.get("zone_count", 1) > 1
 
         device_info = DeviceInfo(
             identifiers={(DOMAIN, str(serial))},
@@ -106,7 +112,7 @@ async def async_setup_entry(
             sw_version=sw_version,
         )
 
-        # === LIVE SENSORS (4 visible, show actual meter readings) ===
+        # === LIVE SENSORS ===
 
         # 1. Total Import (Grid consumption - lifetime counter)
         sensors.append(
@@ -142,7 +148,7 @@ async def async_setup_entry(
                 name="Zużycie Dziś",
                 icon="mdi:flash",
                 device_info=device_info,
-                state_class_override=SensorStateClass.TOTAL,  # Daily resets, not INCREASING
+                state_class_override=SensorStateClass.TOTAL,
             )
         )
 
@@ -156,25 +162,56 @@ async def async_setup_entry(
                     name="Produkcja Dziś",
                     icon="mdi:solar-power",
                     device_info=device_info,
-                    state_class_override=SensorStateClass.TOTAL,  # Daily resets, not INCREASING
+                    state_class_override=SensorStateClass.TOTAL,
                 )
             )
 
-        # === STATISTICS SENSORS (2 invisible, for Energy Dashboard) ===
+        # === STATISTICS SENSORS (for Energy Dashboard) ===
 
-        # 5. Panel Import (hourly statistics for Energy Dashboard)
-        sensors.append(
-            EnergaStatisticsSensor(
-                coordinator=coordinator,
-                meter_id=meter_id,
-                data_key="import",
-                name="Panel Energia Zużycie",
-                device_info=device_info,
-                entry=entry,
+        if has_zones:
+            # G12w: Two zone-specific statistics sensors
+            _LOGGER.info(
+                "Energa: Creating zone-specific stats sensors for meter %s (G12w)",
+                serial,
             )
-        )
 
-        # 6. Panel Export (hourly statistics for Energy Dashboard)
+            # Strefa 1 (droga)
+            sensors.append(
+                EnergaStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="import_1",
+                    name="Panel Energia Strefa 1",
+                    device_info=device_info,
+                    entry=entry,
+                )
+            )
+
+            # Strefa 2 (tania)
+            sensors.append(
+                EnergaStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="import_2",
+                    name="Panel Energia Strefa 2",
+                    device_info=device_info,
+                    entry=entry,
+                )
+            )
+        else:
+            # Single-zone tariff: one statistics sensor
+            sensors.append(
+                EnergaStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="import",
+                    name="Panel Energia Zużycie",
+                    device_info=device_info,
+                    entry=entry,
+                )
+            )
+
+        # Export statistics (always single - no zone split for export)
         if meter.get("obis_minus"):
             sensors.append(
                 EnergaStatisticsSensor(
@@ -187,7 +224,7 @@ async def async_setup_entry(
                 )
             )
 
-        # === INFO SENSORS (Separate entities for details) ===
+        # === INFO SENSORS ===
 
         info_types = [
             ("address", "Adres", "mdi:map-marker", None),
@@ -235,9 +272,9 @@ class EnergaCoordinator(DataUpdateCoordinator):
         )
         self.api = api
         self.entry = entry
-        self._hourly_stats: dict = {}  # {meter_id: {"import": [...], "export": [...]}}
+        self._hourly_stats: dict = {}  # {meter_id: {"import_1": [...], "import_2": [...], ...}}
         self._pre_fetched_stats: dict = {}  # {entity_id: {"sum": x, "start": dt}}
-        self._meter_totals: dict = {}  # {meter_id: {"import": x, "export": y}}
+        self._meter_totals: dict = {}  # {meter_id: {"import_1": x, "import_2": y, ...}}
 
     async def _async_update_data(self):
         """Fetch data from API using smart fetch pattern."""
@@ -254,18 +291,23 @@ class EnergaCoordinator(DataUpdateCoordinator):
 
             for meter in active_meters:
                 meter_id = meter["meter_point_id"]
+                has_zones = meter.get("zone_count", 1) > 1
 
                 # Store meter totals as anchors for backward calculation
-                self._meter_totals[meter_id] = {
+                totals = {
                     "import": float(meter.get("total_plus", 0) or 0),
                     "export": float(meter.get("total_minus", 0) or 0),
                 }
+                if has_zones:
+                    totals["import_1"] = float(meter.get("total_plus_1", 0) or 0)
+                    totals["import_2"] = float(meter.get("total_plus_2", 0) or 0)
+                self._meter_totals[meter_id] = totals
 
                 # Pre-fetch last statistics for this meter (async-safe)
-                await self._fetch_last_stats_for_meter(meter_id)
+                await self._fetch_last_stats_for_meter(meter_id, has_zones)
 
                 # Query last_stat_date for this meter (smart fetch)
-                start_date = await self._get_smart_start_date(meter_id)
+                start_date = await self._get_smart_start_date(meter_id, has_zones)
 
                 try:
                     stats = await self.api.async_get_hourly_statistics(
@@ -302,12 +344,8 @@ class EnergaCoordinator(DataUpdateCoordinator):
         except Exception as err:
             raise UpdateFailed(f"Unexpected error: {err}") from err
 
-    async def _get_smart_start_date(self, meter_id: str):
-        """Get start_date based on last imported statistic (thedeemling pattern).
-
-        Returns:
-            datetime: Start date for fetching (last_stat + 1h, or 30 days ago)
-        """
+    async def _get_smart_start_date(self, meter_id: str, has_zones: bool = False):
+        """Get start_date based on last imported statistic."""
         from datetime import datetime as dt_datetime
 
         from homeassistant.components.recorder.statistics import get_last_statistics
@@ -322,9 +360,16 @@ class EnergaCoordinator(DataUpdateCoordinator):
         registry = er.async_get(self.hass)
         entity_id = None
 
+        # For G12w, check zone 1 sensor; for single zone, check import sensor
+        target_unique_id = (
+            f"energa_{meter_id}_import_1_stats"
+            if has_zones
+            else f"energa_{meter_id}_import_stats"
+        )
+
         for entity in registry.entities.values():
             if (
-                entity.unique_id == f"energa_{meter_id}_import_stats"
+                entity.unique_id == target_unique_id
                 and entity.platform == DOMAIN
             ):
                 entity_id = entity.entity_id
@@ -381,15 +426,20 @@ class EnergaCoordinator(DataUpdateCoordinator):
         totals = self._meter_totals.get(meter_id, {})
         return totals.get(data_key, 0.0)
 
-    async def _fetch_last_stats_for_meter(self, meter_id: str):
+    async def _fetch_last_stats_for_meter(self, meter_id: str, has_zones: bool = False):
         """Pre-fetch last statistics for meter entities (async-safe)."""
         from homeassistant.components.recorder.statistics import get_last_statistics
         from homeassistant.helpers import entity_registry as er
 
         registry = er.async_get(self.hass)
 
-        # Find Panel Energia sensors for this meter
-        for suffix in ["import", "export"]:
+        # Determine which suffixes to check
+        if has_zones:
+            suffixes = ["import_1", "import_2", "export"]
+        else:
+            suffixes = ["import", "export"]
+
+        for suffix in suffixes:
             unique_id = f"energa_{meter_id}_{suffix}_stats"
 
             for entity in registry.entities.values():
@@ -423,11 +473,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
 
 
 class EnergaLiveSensor(CoordinatorEntity, SensorEntity):
-    """Live sensor showing actual meter readings.
-
-    This sensor displays the current total meter reading (lifetime counter)
-    and is visible in the UI. Use this for monitoring actual consumption/production.
-    """
+    """Live sensor showing actual meter readings."""
 
     def __init__(
         self,
@@ -467,30 +513,16 @@ class EnergaLiveSensor(CoordinatorEntity, SensorEntity):
     def native_value(self):
         """Return current meter reading from API."""
         if not self.coordinator.data:
-            _LOGGER.debug("LiveSensor %s: No coordinator data", self._attr_name)
             return None
 
-        # Find meter data
         for meter in self.coordinator.data:
-            # Compare as strings to avoid type mismatch
             if str(meter.get("meter_point_id")) == str(self._meter_id):
                 value = meter.get(self._data_key)
-                _LOGGER.debug(
-                    "LiveSensor %s: Found meter %s, key=%s, value=%s",
-                    self._attr_name,
-                    self._meter_id,
-                    self._data_key,
-                    value,
-                )
                 if value is not None:
                     try:
                         return float(value)
                     except (ValueError, TypeError):
                         return None
-
-        _LOGGER.debug(
-            "LiveSensor %s: Meter %s not found in data", self._attr_name, self._meter_id
-        )
         return None
 
     @property
@@ -521,21 +553,14 @@ class EnergaLiveSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _LOGGER.debug(
-            "LiveSensor %s: Coordinator update, value=%s",
-            self._attr_name,
-            self.native_value,
-        )
         self.async_write_ha_state()
 
 
 class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
     """Statistics sensor for Energy Dashboard.
 
-    This sensor imports hourly statistics into Home Assistant's recorder database
-    and displays the current meter reading as its state.
-
-    Based on pattern from thedeemling/hass-energa-my-meter.
+    Imports hourly statistics into HA recorder database.
+    Supports zone-specific data (import_1, import_2 for G12w).
     """
 
     def __init__(
@@ -552,7 +577,7 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
         self._meter_id = meter_id
         self._data_key = data_key
-        self._entry = entry  # Store for price access
+        self._entry = entry
 
         # Entity attributes
         self._attr_name = name
@@ -561,48 +586,42 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
         # Sensor class attributes
         self._attr_device_class = SensorDeviceClass.ENERGY
-        # NO state_class! We import statistics manually via async_import_statistics.
-        # If we set state_class, HA Recorder auto-creates short-term stats from native_value.
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
         # Device info
         self._attr_device_info = device_info
 
         # Icon based on type
-        self._attr_icon = (
-            "mdi:transmission-tower" if data_key == "import" else "mdi:solar-power"
-        )
+        if "import" in data_key:
+            self._attr_icon = "mdi:transmission-tower"
+        else:
+            self._attr_icon = "mdi:solar-power"
 
     @property
     def native_value(self):
-        """Return None - statistics are imported manually, not from state.
-
-        CRITICAL: Do NOT return total_plus/total_minus here!
-        If we return a value, HA Recorder will auto-create statistics
-        with state=value and sum=0, causing massive spikes on Energy Dashboard.
-        """
+        """Return None - statistics are imported manually."""
         return None
 
     @property
     def available(self) -> bool:
-        """Statistics sensor is available when coordinator has data.
-
-        Note: native_value intentionally returns None (statistics are imported
-        via async_import_statistics, not from sensor state).
-        """
+        """Statistics sensor is available when coordinator has data."""
         return self.coordinator.data is not None
+
+    def _get_price(self) -> float:
+        """Get price for this sensor's zone/type."""
+        if self._data_key == "import_1":
+            return self._entry.options.get(CONF_IMPORT_PRICE_1, 1.2453)
+        elif self._data_key == "import_2":
+            return self._entry.options.get(CONF_IMPORT_PRICE_2, 0.5955)
+        elif self._data_key == "import":
+            return self._entry.options.get(CONF_IMPORT_PRICE, 1.188)
+        else:
+            return self._entry.options.get(CONF_EXPORT_PRICE, 0.95)
 
     @override
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Handle coordinator update - import energy and cost statistics to recorder.
-
-        Uses EnergaDataUpdater for proper incremental statistics:
-        - Queries last sum from database
-        - Incrementally adds hourly values
-        - Handles estimates by buffering
-        - Deduplicates already-imported points
-        """
+        """Handle coordinator update - import statistics to recorder."""
         from .data_updater import EnergaDataUpdater
 
         _LOGGER.debug("Updating statistics for %s", self.entity_id)
@@ -616,8 +635,6 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
             return
 
         # Convert coordinator format to DataUpdater format
-        # Coordinator returns: [{"start": dt, "sum": x, "state": y}]
-        # DataUpdater expects: [{"dt": dt, "value": y}]
         hourly_data = []
         for point in hourly_stats:
             try:
@@ -636,23 +653,20 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
             super()._handle_coordinator_update()
             return
 
-        # Use DataUpdater for proper statistics logic
-        # Pass pre-fetched stats from Coordinator (async-safe, no blocking calls)
         updater = EnergaDataUpdater(
             self.hass,
             self._entry,
             pre_fetched_stats=self.coordinator.get_pre_fetched_stats(),
         )
 
-        # Get meter total as anchor for backward calculation
+        # Get meter total as anchor
         meter_total = self.coordinator.get_meter_total(self._meter_id, self._data_key)
 
-        # CRITICAL: Pass self.entity_id - the ACTUAL entity_id, not a constructed one
         energy_stats, cost_stats = updater.gather_stats_for_sensor(
             meter_id=self._meter_id,
             data_key=self._data_key,
             hourly_data=hourly_data,
-            entity_id=self.entity_id,  # Real entity_id from HA
+            entity_id=self.entity_id,
             meter_total=meter_total,
         )
 
@@ -682,11 +696,14 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
         # === IMPORT COST STATISTICS ===
         if cost_stats:
             cost_entity_id = f"{self.entity_id}_cost"
-            cost_name = (
-                f"{self._attr_name} Koszt"
-                if self._data_key == "import"
-                else f"{self._attr_name} Rekompensata"
-            )
+            if self._data_key == "import_1":
+                cost_name = "Panel Energia Strefa 1 Koszt"
+            elif self._data_key == "import_2":
+                cost_name = "Panel Energia Strefa 2 Koszt"
+            elif self._data_key == "import":
+                cost_name = f"{self._attr_name} Koszt"
+            else:
+                cost_name = f"{self._attr_name} Rekompensata"
 
             cost_metadata = StatisticMetaData(
                 source="recorder",
@@ -698,20 +715,16 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
                 mean_type=StatisticMeanType.NONE,
             )
 
-            price = self._entry.options.get(
-                CONF_IMPORT_PRICE if self._data_key == "import" else CONF_EXPORT_PRICE,
-                1.188 if self._data_key == "import" else 0.95,
-            )
+            price = self._get_price()
 
             _LOGGER.info(
-                "Importing %d cost statistics for %s (price: %.3f PLN/kWh)",
+                "Importing %d cost statistics for %s (price: %.4f PLN/kWh)",
                 len(cost_stats),
                 cost_entity_id,
                 price,
             )
             async_import_statistics(self.hass, cost_metadata, cost_stats)
 
-        # Call parent update
         super()._handle_coordinator_update()
 
 

@@ -106,10 +106,23 @@ class EnergaAPI:
         for meter in self._meters_data:
             m_data = meter.copy()
             if m_data.get("obis_plus"):
+                # Fetch total daily consumption (sum of all zones)
                 vals = await self._fetch_chart(
                     m_data["meter_point_id"], m_data["obis_plus"], ts
                 )
                 m_data["daily_pobor"] = sum(vals)
+
+                # Fetch per-zone daily consumption for G12w
+                if m_data.get("zone_count", 1) > 1:
+                    vals_1 = await self._fetch_chart(
+                        m_data["meter_point_id"], m_data["obis_plus"], ts, zone_index=0
+                    )
+                    vals_2 = await self._fetch_chart(
+                        m_data["meter_point_id"], m_data["obis_plus"], ts, zone_index=1
+                    )
+                    m_data["daily_pobor_1"] = sum(vals_1)
+                    m_data["daily_pobor_2"] = sum(vals_2)
+
             if m_data.get("obis_minus"):
                 vals = await self._fetch_chart(
                     m_data["meter_point_id"], m_data["obis_minus"], ts
@@ -152,9 +165,18 @@ class EnergaAPI:
 
         result = {"import": [], "export": []}
         if meter.get("obis_plus"):
+            # Total import (sum of all zones)
             result["import"] = await self._fetch_chart(
                 meter["meter_point_id"], meter["obis_plus"], ts
             )
+            # Per-zone import for G12w
+            if meter.get("zone_count", 1) > 1:
+                result["import_1"] = await self._fetch_chart(
+                    meter["meter_point_id"], meter["obis_plus"], ts, zone_index=0
+                )
+                result["import_2"] = await self._fetch_chart(
+                    meter["meter_point_id"], meter["obis_plus"], ts, zone_index=1
+                )
         if meter.get("obis_minus"):
             result["export"] = await self._fetch_chart(
                 meter["meter_point_id"], meter["obis_minus"], ts
@@ -175,16 +197,9 @@ class EnergaAPI:
     ):
         """Fetch hourly data from start_date to now (smart fetch).
 
-        This method only fetches data from start_date forward, enabling
-        incremental updates without re-fetching historical data.
-
-        Args:
-            meter_point_id: Meter ID to fetch data for
-            start_date: Start datetime (if None, defaults to 30 days ago)
-
         Returns:
-            dict with "import" and "export" keys containing lists of:
-            {"start": datetime, "state": float (hourly value)}
+            dict with keys like "import", "import_1", "import_2", "export"
+            containing lists of: {"start": datetime, "state": float}
         """
         from datetime import timedelta
 
@@ -208,19 +223,25 @@ class EnergaAPI:
             _LOGGER.warning("Meter %s not found for statistics", meter_point_id)
             return {"import": [], "export": []}
 
+        has_zones = meter.get("zone_count", 1) > 1
+
         # Calculate how many days to fetch
         days_to_fetch = (now.date() - start_date.date()).days + 1
         days_to_fetch = max(1, min(days_to_fetch, 365))  # Cap at 365 days
 
         _LOGGER.debug(
-            "Smart fetch for %s: from %s (%d days)",
+            "Smart fetch for %s: from %s (%d days, zones=%s)",
             meter_point_id,
             start_date.date(),
             days_to_fetch,
+            has_zones,
         )
 
         # Collect hourly data points
-        all_points = {"import": [], "export": []}
+        keys = ["import", "export"]
+        if has_zones:
+            keys.extend(["import_1", "import_2"])
+        all_points = {k: [] for k in keys}
 
         for day_offset in range(days_to_fetch):
             target_date = start_date + timedelta(days=day_offset)
@@ -235,41 +256,33 @@ class EnergaAPI:
                 hour=0, minute=0, second=0, microsecond=0
             ).astimezone(tz)
 
-            # Process import hours
-            for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
-                if hourly_value and hourly_value > 0:
-                    hour_dt = day_start + timedelta(hours=hour_idx)
-                    # Only include points after start_date
-                    if hour_dt >= start_date:
-                        all_points["import"].append(
-                            {
-                                "start": hour_dt,
-                                "state": hourly_value,
-                            }
-                        )
-
-            # Process export hours
-            for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
-                if hourly_value and hourly_value > 0:
-                    hour_dt = day_start + timedelta(hours=hour_idx)
-                    if hour_dt >= start_date:
-                        all_points["export"].append(
-                            {
-                                "start": hour_dt,
-                                "state": hourly_value,
-                            }
-                        )
+            # Process each data key
+            for key in keys:
+                for hour_idx, hourly_value in enumerate(day_data.get(key, [])):
+                    if hourly_value and hourly_value > 0:
+                        hour_dt = day_start + timedelta(hours=hour_idx)
+                        # Only include points after start_date
+                        if hour_dt >= start_date:
+                            all_points[key].append(
+                                {
+                                    "start": hour_dt,
+                                    "state": hourly_value,
+                                }
+                            )
 
         # Sort by time (oldest first)
-        all_points["import"].sort(key=lambda x: x["start"])
-        all_points["export"].sort(key=lambda x: x["start"])
+        for key in keys:
+            all_points[key].sort(key=lambda x: x["start"])
 
         _LOGGER.info(
-            "Smart fetch for %s: %d import, %d export points (from %s)",
+            "Smart fetch for %s: %d import, %d export points (from %s)%s",
             meter_point_id,
             len(all_points["import"]),
             len(all_points["export"]),
             start_date.date(),
+            f", zone1={len(all_points.get('import_1', []))}, zone2={len(all_points.get('import_2', []))}"
+            if has_zones
+            else "",
         )
 
         return all_points
@@ -327,15 +340,51 @@ class EnergaAPI:
                 "daily_produkcja": None,
                 "total_plus": None,
                 "total_minus": None,
+                "total_plus_1": None,
+                "total_plus_2": None,
+                "total_minus_1": None,
+                "total_minus_2": None,
                 "obis_plus": None,
                 "obis_minus": None,
+                "zone_count": 1,
             }
 
+            # Sum all A+ and A- zones; detect multi-zone tariffs (G12w)
+            total_plus_sum = 0.0
+            total_minus_sum = 0.0
+            zone_numbers_seen = set()
             for m in mp.get("lastMeasurements", []):
-                if "A+" in m.get("zone", ""):
-                    meter_obj["total_plus"] = float(m.get("value", 0))
-                if "A-" in m.get("zone", ""):
-                    meter_obj["total_minus"] = float(m.get("value", 0))
+                zone_name = m.get("zone", "")
+                value = float(m.get("value", 0))
+                if "A+" in zone_name:
+                    total_plus_sum += value
+                    if "strefa 1" in zone_name:
+                        meter_obj["total_plus_1"] = value
+                        zone_numbers_seen.add(1)
+                    elif "strefa 2" in zone_name:
+                        meter_obj["total_plus_2"] = value
+                        zone_numbers_seen.add(2)
+                if "A-" in zone_name:
+                    total_minus_sum += value
+                    if "strefa 1" in zone_name:
+                        meter_obj["total_minus_1"] = value
+                    elif "strefa 2" in zone_name:
+                        meter_obj["total_minus_2"] = value
+
+            if total_plus_sum > 0:
+                meter_obj["total_plus"] = total_plus_sum
+            if total_minus_sum > 0:
+                meter_obj["total_minus"] = total_minus_sum
+
+            # Detect zone count from lastMeasurements
+            if len(zone_numbers_seen) > 1:
+                meter_obj["zone_count"] = len(zone_numbers_seen)
+                _LOGGER.info(
+                    "Meter %s: multi-zone tariff detected (%s), %d zones",
+                    serial,
+                    mp.get("tariff"),
+                    meter_obj["zone_count"],
+                )
 
             for obj in mp.get("meterObjects", []):
                 if obj.get("obis", "").startswith("1-0:1.8.0"):
@@ -346,8 +395,16 @@ class EnergaAPI:
         return meters_found
 
     async def _fetch_chart(
-        self, meter_id: str, obis: str, timestamp: int
+        self, meter_id: str, obis: str, timestamp: int, zone_index: int | None = None
     ) -> list[float]:
+        """Fetch chart data for a meter.
+
+        Args:
+            meter_id: Meter point ID
+            obis: OBIS code (e.g. 1-0:1.8.0*255)
+            timestamp: Day timestamp in milliseconds
+            zone_index: None=sum all zones, 0=zone 1, 1=zone 2
+        """
         params = {
             "meterPoint": meter_id,
             "type": "DAY",
@@ -359,9 +416,18 @@ class EnergaAPI:
             params["token"] = self._token
         try:
             data = await self._api_get(CHART_ENDPOINT, params=params)
-            return [
-                (p.get("zones", [0])[0] or 0.0) for p in data["response"]["mainChart"]
-            ]
+            results = []
+            for p in data["response"]["mainChart"]:
+                zones = p.get("zones", [])
+                if zone_index is not None:
+                    # Specific zone
+                    val = zones[zone_index] if zone_index < len(zones) else None
+                    results.append(val or 0.0)
+                else:
+                    # Sum all zones (total)
+                    total = sum(z or 0.0 for z in zones)
+                    results.append(total)
+            return results
         except EnergaTokenExpiredError:
             raise  # Propagate to coordinator for re-login
         except Exception as e:
