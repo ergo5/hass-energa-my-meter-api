@@ -16,6 +16,8 @@ from .const import (
     CONF_DEVICE_TOKEN,
     CONF_EXPORT_PRICE,
     CONF_IMPORT_PRICE,
+    CONF_IMPORT_PRICE_1,
+    CONF_IMPORT_PRICE_2,
     CONF_PASSWORD,
     CONF_USERNAME,
     DOMAIN,
@@ -191,6 +193,18 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             errors=errors,
         )
 
+    def _has_multi_zone_meters(self) -> bool:
+        """Check if any meter uses multi-zone tariff (G12w)."""
+        entry_data = self.hass.data.get(DOMAIN, {}).get(
+            self._config_entry.entry_id, {}
+        )
+        api = entry_data.get("api") if isinstance(entry_data, dict) else None
+        if api and hasattr(api, "_meters_data"):
+            return any(
+                m.get("zone_count", 1) > 1 for m in api._meters_data
+            )
+        return False
+
     async def async_step_prices(self, user_input=None):
         """Handle energy price configuration."""
         if user_input is not None:
@@ -204,27 +218,49 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             await self.hass.config_entries.async_reload(self._config_entry.entry_id)
             return self.async_create_entry(title="", data={})
 
+        has_zones = self._has_multi_zone_meters()
+
         # Get current values from options
-        current_import = self._config_entry.options.get(CONF_IMPORT_PRICE, 1.188)
         current_export = self._config_entry.options.get(CONF_EXPORT_PRICE, 0.95)
 
-        return self.async_show_form(
-            step_id="prices",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_IMPORT_PRICE, default=current_import): vol.Coerce(
-                        float
-                    ),
-                    vol.Required(CONF_EXPORT_PRICE, default=current_export): vol.Coerce(
-                        float
-                    ),
-                }
-            ),
-            description_placeholders={
-                "import_desc": "Cena za 1 kWh zużytej energii (PLN)",
-                "export_desc": "Stawka za 1 kWh oddanej energii (PLN)",
-            },
-        )
+        if has_zones:
+            # G12w: show zone-specific prices
+            current_price_1 = self._config_entry.options.get(CONF_IMPORT_PRICE_1, 1.2453)
+            current_price_2 = self._config_entry.options.get(CONF_IMPORT_PRICE_2, 0.5955)
+
+            return self.async_show_form(
+                step_id="prices",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_IMPORT_PRICE_1, default=current_price_1
+                        ): vol.Coerce(float),
+                        vol.Required(
+                            CONF_IMPORT_PRICE_2, default=current_price_2
+                        ): vol.Coerce(float),
+                        vol.Required(
+                            CONF_EXPORT_PRICE, default=current_export
+                        ): vol.Coerce(float),
+                    }
+                ),
+            )
+        else:
+            # Single-zone: show single import price
+            current_import = self._config_entry.options.get(CONF_IMPORT_PRICE, 1.188)
+
+            return self.async_show_form(
+                step_id="prices",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_IMPORT_PRICE, default=current_import
+                        ): vol.Coerce(float),
+                        vol.Required(
+                            CONF_EXPORT_PRICE, default=current_export
+                        ): vol.Coerce(float),
+                    }
+                ),
+            )
 
     async def async_step_history(self, user_input=None):
         """Handle history import from options."""
@@ -326,6 +362,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                 and (
                     "panel_energia_zuzycie" in entity.entity_id
                     or "panel_energia_produkcja" in entity.entity_id
+                    or "panel_energia_strefa" in entity.entity_id
                 )
             ]
 

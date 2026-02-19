@@ -37,6 +37,8 @@ from .const import (
     CONF_DEVICE_TOKEN,
     CONF_EXPORT_PRICE,
     CONF_IMPORT_PRICE,
+    CONF_IMPORT_PRICE_1,
+    CONF_IMPORT_PRICE_2,
     CONF_PASSWORD,
     CONF_USERNAME,
     DOMAIN,
@@ -46,10 +48,6 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
 TIMEZONE = ZoneInfo("Europe/Warsaw")
 UTC = ZoneInfo("UTC")
-
-# Zone price constants (also in sensor.py)
-CONF_IMPORT_PRICE_1 = "import_price_1"
-CONF_IMPORT_PRICE_2 = "import_price_2"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

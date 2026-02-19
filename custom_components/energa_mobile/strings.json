@@ -49,6 +49,8 @@
                 "description": "Set energy prices for cost calculation in Energy Panel.",
                 "data": {
                     "import_price": "Price per kWh (consumption) [PLN]",
+                    "import_price_1": "Zone 1 price per kWh (peak) [PLN]",
+                    "import_price_2": "Zone 2 price per kWh (off-peak) [PLN]",
                     "export_price": "Rate per kWh (production) [PLN]"
                 }
             },

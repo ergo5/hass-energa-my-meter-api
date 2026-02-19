@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_EXPORT_PRICE, CONF_IMPORT_PRICE, DOMAIN
+from .const import CONF_EXPORT_PRICE, CONF_IMPORT_PRICE, CONF_IMPORT_PRICE_1, CONF_IMPORT_PRICE_2, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,6 +82,10 @@ class EnergaDataUpdater:
         # Get price for cost calculation
         if data_key == "import":
             price = self.entry.options.get(CONF_IMPORT_PRICE, 1.188)
+        elif data_key == "import_1":
+            price = self.entry.options.get(CONF_IMPORT_PRICE_1, 1.2453)
+        elif data_key == "import_2":
+            price = self.entry.options.get(CONF_IMPORT_PRICE_2, 0.5955)
         else:
             price = self.entry.options.get(CONF_EXPORT_PRICE, 0.95)
 

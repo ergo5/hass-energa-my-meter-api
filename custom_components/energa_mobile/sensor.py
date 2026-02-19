@@ -33,16 +33,12 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.loader import async_get_integration
 
 from .api import EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
-from .const import CONF_EXPORT_PRICE, CONF_IMPORT_PRICE, DOMAIN
+from .const import CONF_EXPORT_PRICE, CONF_IMPORT_PRICE, CONF_IMPORT_PRICE_1, CONF_IMPORT_PRICE_2, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 # Timezone for Energa data
 TIMEZONE = ZoneInfo("Europe/Warsaw")
-
-# Zone price config keys
-CONF_IMPORT_PRICE_1 = "import_price_1"
-CONF_IMPORT_PRICE_2 = "import_price_2"
 
 
 async def async_setup_entry(
