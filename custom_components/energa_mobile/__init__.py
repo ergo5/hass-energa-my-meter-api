@@ -1,7 +1,7 @@
 """Energa My Meter integration.
 
 Clean rebuild with simplified architecture:
-- Statistics sensors only (for Energy Dashboard)
+- Statistics sensors with zone support (G12w: strefa 1 + strefa 2)
 - No self-healing (manual fetch_history service)
 - Active meter filtering
 """
@@ -37,8 +37,14 @@ from .const import (
     CONF_DEVICE_TOKEN,
     CONF_EXPORT_PRICE,
     CONF_IMPORT_PRICE,
+    CONF_IMPORT_PRICE_1,
+    CONF_IMPORT_PRICE_2,
     CONF_PASSWORD,
     CONF_USERNAME,
+    DEFAULT_EXPORT_PRICE,
+    DEFAULT_IMPORT_PRICE,
+    DEFAULT_IMPORT_PRICE_1,
+    DEFAULT_IMPORT_PRICE_2,
     DOMAIN,
 )
 
@@ -172,35 +178,38 @@ async def _import_meter_history(
     days: int,
     entry: ConfigEntry,
 ) -> None:
-    """Import historical data for a single meter."""
-    # Use meter_serial for entity_id (real meter number, e.g. 12345678)
-    # meter_point_id is API-internal (e.g. 123456), only used for API calls
-    meter_point_id = meter["meter_point_id"]  # For API calls
-    meter_id = meter.get(
-        "meter_serial", meter_point_id
-    )  # For entity_id (real meter number)
-    serial = meter_id  # For notifications
+    """Import historical data for a single meter.
+
+    Supports multi-zone tariffs (G12w): imports zone-specific statistics.
+    """
+    meter_point_id = meter["meter_point_id"]
+    meter_id = meter.get("meter_serial", meter_point_id)
+    serial = meter_id
+    has_zones = meter.get("zone_count", 1) > 1
 
     _LOGGER.info(
-        "Starting history import for meter %s (%d days from %s)",
+        "Starting history import for meter %s (%d days from %s, zones=%s)",
         serial,
         days,
         start_date.date(),
+        has_zones,
     )
 
-    # Show start notification
     persistent_notification.async_create(
         hass,
         f"Rozpoczęto pobieranie historii dla licznika {serial}\n"
-        f"Zakres: {days} dni od {start_date.date()}",
+        f"Zakres: {days} dni od {start_date.date()}"
+        + (f"\nTaryfa wielostrefowa: {meter.get('tariff')}" if has_zones else ""),
         title="Energa: Import Historii",
         notification_id=f"energa_import_{meter_id}",
     )
 
     try:
-        # Get current meter readings as anchor
+        # Get current meter readings as anchors
         anchor_import = float(meter.get("total_plus") or 0)
         anchor_export = float(meter.get("total_minus") or 0)
+        anchor_import_1 = float(meter.get("total_plus_1") or 0) if has_zones else 0
+        anchor_import_2 = float(meter.get("total_plus_2") or 0) if has_zones else 0
 
         if anchor_import <= 0:
             _LOGGER.error("Invalid anchor for import (total_plus=0)")
@@ -214,6 +223,8 @@ async def _import_meter_history(
 
         # Collect all hourly data
         import_points = []
+        import_1_points = []
+        import_2_points = []
         export_points = []
 
         for day_offset in range(days):
@@ -236,36 +247,40 @@ async def _import_meter_history(
 
             day_start = target_day.replace(hour=0, minute=0, second=0, microsecond=0)
 
-            # Process import data
+            # Process import data (total)
             for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
                 if hourly_value and hourly_value >= 0:
                     hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
-                    import_points.append(
-                        {
-                            "dt": hour_dt,
-                            "value": hourly_value,
-                        }
-                    )
+                    import_points.append({"dt": hour_dt, "value": hourly_value})
+
+            # Process zone-specific import data
+            if has_zones:
+                for hour_idx, hourly_value in enumerate(day_data.get("import_1", [])):
+                    if hourly_value and hourly_value > 0:
+                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        import_1_points.append({"dt": hour_dt, "value": hourly_value})
+
+                for hour_idx, hourly_value in enumerate(day_data.get("import_2", [])):
+                    if hourly_value and hourly_value > 0:
+                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        import_2_points.append({"dt": hour_dt, "value": hourly_value})
 
             # Process export data
             for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
                 if hourly_value and hourly_value >= 0:
                     hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
-                    export_points.append(
-                        {
-                            "dt": hour_dt,
-                            "value": hourly_value,
-                        }
-                    )
+                    export_points.append({"dt": hour_dt, "value": hourly_value})
 
         _LOGGER.info(
-            "Collected data for meter %s: %d import points, %d export points",
+            "Collected data for meter %s: %d import, %d export%s",
             serial,
             len(import_points),
             len(export_points),
+            f", zone1={len(import_1_points)}, zone2={len(import_2_points)}"
+            if has_zones
+            else "",
         )
 
-        # Build statistics with cumulative sums (working backwards from anchor)
         def build_statistics(
             points: list, anchor: float, entity_suffix: str, entry: ConfigEntry
         ) -> int:
@@ -273,17 +288,20 @@ async def _import_meter_history(
                 return 0
 
             # Get price from config options
-            if entity_suffix == "import":
-                price = entry.options.get(CONF_IMPORT_PRICE, 1.188)
-            else:  # export
-                price = entry.options.get(CONF_EXPORT_PRICE, 0.95)
+            if entity_suffix == "import_1":
+                price = entry.options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1)
+            elif entity_suffix == "import_2":
+                price = entry.options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2)
+            elif entity_suffix == "import":
+                price = entry.options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
+            else:
+                price = entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
 
             # Sort newest first for backward calculation
             points.sort(key=lambda x: x["dt"], reverse=True)
 
             running_sum = anchor
             statistics = []
-            cost_statistics = []
 
             for point in points:
                 statistics.append(
@@ -298,7 +316,8 @@ async def _import_meter_history(
             # Sort oldest first for import
             statistics.sort(key=lambda x: x["start"])
 
-            # Build cost statistics — derived from energy sum × price
+            # Build cost statistics
+            cost_statistics = []
             for stat in statistics:
                 hourly_energy = stat["state"] or 0
                 hourly_cost = hourly_energy * price
@@ -311,13 +330,14 @@ async def _import_meter_history(
                     }
                 )
 
-            # Use correct entity IDs that match actual sensors on PROD
-            # Energy sensors are: sensor.energa_{meter_id}_panel_energia_zuzycie / panel_energia_produkcja
-            if entity_suffix == "import":
-                energy_sensor_name = "panel_energia_zuzycie"
-            else:
-                energy_sensor_name = "panel_energia_produkcja"
-
+            # Map entity suffix to sensor name
+            suffix_to_name = {
+                "import": "panel_energia_zuzycie",
+                "import_1": "panel_energia_strefa_1",
+                "import_2": "panel_energia_strefa_2",
+                "export": "panel_energia_produkcja",
+            }
+            energy_sensor_name = suffix_to_name.get(entity_suffix, f"panel_{entity_suffix}")
             entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
 
             # Import energy statistics
@@ -329,6 +349,7 @@ async def _import_meter_history(
                 has_mean=False,
                 has_sum=True,
                 mean_type=StatisticMeanType.NONE,
+                unit_class="energy",
             )
 
             async_import_statistics(hass, metadata, statistics)
@@ -336,13 +357,15 @@ async def _import_meter_history(
                 "Imported %d energy statistics for %s", len(statistics), entity_id
             )
 
-            # Import cost statistics to matching cost sensor
+            # Import cost statistics
             cost_entity_id = f"{entity_id}_cost"
-            cost_name = (
-                "Panel Energia Zużycie Koszt"
-                if entity_suffix == "import"
-                else "Panel Energia Produkcja Rekompensata"
-            )
+            cost_name_map = {
+                "import": "Panel Energia Zużycie Koszt",
+                "import_1": "Panel Energia Strefa 1 Koszt",
+                "import_2": "Panel Energia Strefa 2 Koszt",
+                "export": "Panel Energia Produkcja Rekompensata",
+            }
+            cost_name = cost_name_map.get(entity_suffix, f"Koszt {entity_suffix}")
 
             cost_metadata = StatisticMetaData(
                 source="recorder",
@@ -352,11 +375,12 @@ async def _import_meter_history(
                 has_mean=False,
                 has_sum=True,
                 mean_type=StatisticMeanType.NONE,
+                unit_class=None,
             )
 
             async_import_statistics(hass, cost_metadata, cost_statistics)
             _LOGGER.info(
-                "Imported %d cost statistics for %s (price: %.3f PLN/kWh)",
+                "Imported %d cost statistics for %s (price: %.4f PLN/kWh)",
                 len(cost_statistics),
                 cost_entity_id,
                 price,
@@ -364,20 +388,34 @@ async def _import_meter_history(
 
             return len(statistics)
 
-        count_import = build_statistics(import_points, anchor_import, "import", entry)
-        count_export = build_statistics(export_points, anchor_export, "export", entry)
+        # Build and import statistics
+        if has_zones:
+            count_1 = build_statistics(import_1_points, anchor_import_1, "import_1", entry)
+            count_2 = build_statistics(import_2_points, anchor_import_2, "import_2", entry)
+            count_export = build_statistics(export_points, anchor_export, "export", entry)
+            total_count = count_1 + count_2 + count_export
 
-        total_count = count_import + count_export
+            persistent_notification.async_create(
+                hass,
+                f"Zakończono import dla licznika {serial}\n"
+                f"Zaimportowano {total_count} punktów danych\n"
+                f"(Strefa 1: {count_1}, Strefa 2: {count_2}, Export: {count_export})",
+                title="Energa: Sukces",
+                notification_id=f"energa_import_{meter_id}",
+            )
+        else:
+            count_import = build_statistics(import_points, anchor_import, "import", entry)
+            count_export = build_statistics(export_points, anchor_export, "export", entry)
+            total_count = count_import + count_export
 
-        # Show success notification
-        persistent_notification.async_create(
-            hass,
-            f"Zakończono import dla licznika {serial}\n"
-            f"Zaimportowano {total_count} punktów danych\n"
-            f"(Import: {count_import}, Export: {count_export})",
-            title="Energa: Sukces",
-            notification_id=f"energa_import_{meter_id}",
-        )
+            persistent_notification.async_create(
+                hass,
+                f"Zakończono import dla licznika {serial}\n"
+                f"Zaimportowano {total_count} punktów danych\n"
+                f"(Import: {count_import}, Export: {count_export})",
+                title="Energa: Sukces",
+                notification_id=f"energa_import_{meter_id}",
+            )
 
         _LOGGER.info("History import complete for %s: %d points", serial, total_count)
 
