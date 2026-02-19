@@ -33,7 +33,17 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.loader import async_get_integration
 
 from .api import EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
-from .const import CONF_EXPORT_PRICE, CONF_IMPORT_PRICE, CONF_IMPORT_PRICE_1, CONF_IMPORT_PRICE_2, DOMAIN
+from .const import (
+    CONF_EXPORT_PRICE,
+    CONF_IMPORT_PRICE,
+    CONF_IMPORT_PRICE_1,
+    CONF_IMPORT_PRICE_2,
+    DEFAULT_EXPORT_PRICE,
+    DEFAULT_IMPORT_PRICE,
+    DEFAULT_IMPORT_PRICE_1,
+    DEFAULT_IMPORT_PRICE_2,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -509,16 +519,28 @@ class EnergaLiveSensor(CoordinatorEntity, SensorEntity):
     def native_value(self):
         """Return current meter reading from API."""
         if not self.coordinator.data:
+            _LOGGER.debug("LiveSensor %s: No coordinator data", self._attr_name)
             return None
 
         for meter in self.coordinator.data:
+            # Compare as strings to avoid type mismatch
             if str(meter.get("meter_point_id")) == str(self._meter_id):
                 value = meter.get(self._data_key)
+                _LOGGER.debug(
+                    "LiveSensor %s: key=%s, value=%s",
+                    self._attr_name,
+                    self._data_key,
+                    value,
+                )
                 if value is not None:
                     try:
                         return float(value)
                     except (ValueError, TypeError):
                         return None
+
+        _LOGGER.debug(
+            "LiveSensor %s: Meter %s not found in data", self._attr_name, self._meter_id
+        )
         return None
 
     @property
@@ -549,6 +571,11 @@ class EnergaLiveSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        _LOGGER.debug(
+            "LiveSensor %s: Coordinator update, value=%s",
+            self._attr_name,
+            self.native_value,
+        )
         self.async_write_ha_state()
 
 
@@ -595,29 +622,44 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Return None - statistics are imported manually."""
+        """Return None - statistics are imported manually, not from state.
+
+        CRITICAL: Do NOT return total_plus/total_minus here!
+        If we return a value, HA Recorder will auto-create statistics
+        with state=value and sum=0, causing massive spikes on Energy Dashboard.
+        """
         return None
 
     @property
     def available(self) -> bool:
-        """Statistics sensor is available when coordinator has data."""
+        """Statistics sensor is available when coordinator has data.
+
+        Note: native_value intentionally returns None (statistics are imported
+        via async_import_statistics, not from sensor state).
+        """
         return self.coordinator.data is not None
 
     def _get_price(self) -> float:
         """Get price for this sensor's zone/type."""
         if self._data_key == "import_1":
-            return self._entry.options.get(CONF_IMPORT_PRICE_1, 1.2453)
+            return self._entry.options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1)
         elif self._data_key == "import_2":
-            return self._entry.options.get(CONF_IMPORT_PRICE_2, 0.5955)
+            return self._entry.options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2)
         elif self._data_key == "import":
-            return self._entry.options.get(CONF_IMPORT_PRICE, 1.188)
+            return self._entry.options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
         else:
-            return self._entry.options.get(CONF_EXPORT_PRICE, 0.95)
+            return self._entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
 
     @override
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Handle coordinator update - import statistics to recorder."""
+        """Handle coordinator update - import energy and cost statistics to recorder.
+
+        Uses EnergaDataUpdater for proper incremental statistics:
+        - Queries last sum from database
+        - Incrementally adds hourly values
+        - Deduplicates already-imported points
+        """
         from .data_updater import EnergaDataUpdater
 
         _LOGGER.debug("Updating statistics for %s", self.entity_id)
@@ -680,6 +722,7 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
             has_mean=False,
             has_sum=True,
             mean_type=StatisticMeanType.NONE,
+            unit_class="energy",
         )
 
         _LOGGER.info(
@@ -709,6 +752,7 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
                 has_mean=False,
                 has_sum=True,
                 mean_type=StatisticMeanType.NONE,
+                unit_class=None,
             )
 
             price = self._get_price()

@@ -46,6 +46,10 @@ class EnergaAPI:
         """Set Home Assistant instance reference for database queries."""
         self._hass = hass
 
+    def has_multi_zone_meters(self) -> bool:
+        """Check if any meter uses a multi-zone tariff (e.g. G12w)."""
+        return any(m.get("zone_count", 1) > 1 for m in self._meters_data)
+
     async def async_login(self) -> bool:
         try:
             # Clear old cookies/session state before re-login

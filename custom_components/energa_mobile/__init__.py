@@ -41,6 +41,10 @@ from .const import (
     CONF_IMPORT_PRICE_2,
     CONF_PASSWORD,
     CONF_USERNAME,
+    DEFAULT_EXPORT_PRICE,
+    DEFAULT_IMPORT_PRICE,
+    DEFAULT_IMPORT_PRICE_1,
+    DEFAULT_IMPORT_PRICE_2,
     DOMAIN,
 )
 
@@ -285,13 +289,13 @@ async def _import_meter_history(
 
             # Get price from config options
             if entity_suffix == "import_1":
-                price = entry.options.get(CONF_IMPORT_PRICE_1, 1.2453)
+                price = entry.options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1)
             elif entity_suffix == "import_2":
-                price = entry.options.get(CONF_IMPORT_PRICE_2, 0.5955)
+                price = entry.options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2)
             elif entity_suffix == "import":
-                price = entry.options.get(CONF_IMPORT_PRICE, 1.188)
+                price = entry.options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
             else:
-                price = entry.options.get(CONF_EXPORT_PRICE, 0.95)
+                price = entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
 
             # Sort newest first for backward calculation
             points.sort(key=lambda x: x["dt"], reverse=True)
@@ -345,6 +349,7 @@ async def _import_meter_history(
                 has_mean=False,
                 has_sum=True,
                 mean_type=StatisticMeanType.NONE,
+                unit_class="energy",
             )
 
             async_import_statistics(hass, metadata, statistics)
@@ -370,6 +375,7 @@ async def _import_meter_history(
                 has_mean=False,
                 has_sum=True,
                 mean_type=StatisticMeanType.NONE,
+                unit_class=None,
             )
 
             async_import_statistics(hass, cost_metadata, cost_statistics)

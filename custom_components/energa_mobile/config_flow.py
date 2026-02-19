@@ -20,6 +20,10 @@ from .const import (
     CONF_IMPORT_PRICE_2,
     CONF_PASSWORD,
     CONF_USERNAME,
+    DEFAULT_EXPORT_PRICE,
+    DEFAULT_IMPORT_PRICE,
+    DEFAULT_IMPORT_PRICE_1,
+    DEFAULT_IMPORT_PRICE_2,
     DOMAIN,
 )
 
@@ -199,10 +203,8 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             self._config_entry.entry_id, {}
         )
         api = entry_data.get("api") if isinstance(entry_data, dict) else None
-        if api and hasattr(api, "_meters_data"):
-            return any(
-                m.get("zone_count", 1) > 1 for m in api._meters_data
-            )
+        if api and hasattr(api, "has_multi_zone_meters"):
+            return api.has_multi_zone_meters()
         return False
 
     async def async_step_prices(self, user_input=None):
@@ -221,12 +223,12 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         has_zones = self._has_multi_zone_meters()
 
         # Get current values from options
-        current_export = self._config_entry.options.get(CONF_EXPORT_PRICE, 0.95)
+        current_export = self._config_entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
 
         if has_zones:
             # G12w: show zone-specific prices
-            current_price_1 = self._config_entry.options.get(CONF_IMPORT_PRICE_1, 1.2453)
-            current_price_2 = self._config_entry.options.get(CONF_IMPORT_PRICE_2, 0.5955)
+            current_price_1 = self._config_entry.options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1)
+            current_price_2 = self._config_entry.options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2)
 
             return self.async_show_form(
                 step_id="prices",
@@ -246,7 +248,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             )
         else:
             # Single-zone: show single import price
-            current_import = self._config_entry.options.get(CONF_IMPORT_PRICE, 1.188)
+            current_import = self._config_entry.options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
 
             return self.async_show_form(
                 step_id="prices",
