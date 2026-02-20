@@ -1,11 +1,8 @@
 """
 Data updater for Energa My Meter - Smart Statistics.
 
-Two calculation strategies:
-- Forward: When existing stats available (coordinator updates).
-  Adds hourly values to last known sum. Guarantees monotonic sums.
-- Backward: For initial imports (fetch_history, first run).
-  Subtracts from meter_total anchor going back in time.
+Forward-only calculation: adds hourly values to last known sum (or 0).
+Guarantees monotonically increasing, non-negative sums.
 """
 
 import logging
@@ -50,12 +47,12 @@ class EnergaDataUpdater:
         data_key: str,
         hourly_data: list[dict],
         entity_id: str,
-        meter_total: float | None = None,
+        meter_total: float | None = None,  # kept for API compat, unused
     ) -> tuple[list, list]:
         """Build statistics for import into recorder.
 
-        Uses forward calculation when existing stats are available (coordinator),
-        backward calculation from meter_total for initial imports (fetch_history).
+        Always uses forward calculation: adds hourly values to last known sum.
+        Starts from sum=0 when no existing stats are available.
         """
         if not hourly_data:
             _LOGGER.debug("No hourly data for %s", entity_id)
@@ -64,25 +61,17 @@ class EnergaDataUpdater:
         # Get price for cost calculation
         price = self._get_price(data_key)
 
-        # Choose calculation strategy
+        # Forward calculation - from last known sum or 0
         pre_fetched = self._pre_fetched_stats.get(entity_id)
 
-        if pre_fetched and pre_fetched.get("sum") is not None and pre_fetched["sum"] > 0:
+        if pre_fetched and pre_fetched.get("sum") is not None:
             energy_stats = self._forward_calculation(
                 hourly_data, pre_fetched, entity_id
             )
-        elif meter_total and meter_total > 0:
-            energy_stats = self._backward_calculation(
-                hourly_data, meter_total, entity_id
-            )
         else:
-            hourly_sum = sum(
-                (p.get("value") or 0)
-                for p in hourly_data
-                if p.get("value") is not None
-            )
-            energy_stats = self._backward_calculation(
-                hourly_data, hourly_sum, entity_id
+            # First run or after stats clear - start from 0
+            energy_stats = self._forward_calculation(
+                hourly_data, {"sum": 0, "start": None}, entity_id
             )
 
         if not energy_stats:
@@ -161,42 +150,6 @@ class EnergaDataUpdater:
             last_sum,
             len(energy_stats),
             running_sum,
-        )
-
-        return energy_stats
-
-    def _backward_calculation(
-        self, hourly_data: list[dict], anchor: float, entity_id: str
-    ) -> list[dict]:
-        """Backward calculation from anchor (initial import / fetch_history)."""
-        sorted_data = sorted(hourly_data, key=lambda x: x["dt"], reverse=True)
-
-        running_sum = anchor
-        energy_stats = []
-
-        for point in sorted_data:
-            hourly_value = point.get("value") if point.get("value") is not None else 0
-
-            if hourly_value < 0 or hourly_value > 100:
-                continue
-
-            energy_stats.append(
-                {
-                    "start": point["dt"],
-                    "sum": running_sum,
-                    "state": hourly_value,
-                }
-            )
-            running_sum -= hourly_value
-
-        # Sort oldest first for import
-        energy_stats.sort(key=lambda x: x["start"])
-
-        _LOGGER.debug(
-            "Backward calc for %s: anchor=%.3f, points=%d",
-            entity_id,
-            anchor,
-            len(energy_stats),
         )
 
         return energy_stats

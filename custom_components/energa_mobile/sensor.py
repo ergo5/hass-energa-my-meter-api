@@ -299,7 +299,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
                 meter_id = meter["meter_point_id"]
                 has_zones = meter.get("zone_count", 1) > 1
 
-                # Store meter totals as anchors for backward calculation
+                # Store meter totals for reference
                 totals = {
                     "import": float(meter.get("total_plus", 0) or 0),
                     "export": float(meter.get("total_minus", 0) or 0),

@@ -284,7 +284,7 @@ async def _import_meter_history(
         def build_statistics(
             points: list, anchor: float, entity_suffix: str, entry: ConfigEntry
         ) -> int:
-            if not points or anchor <= 0:
+            if not points:
                 return 0
 
             # Get price from config options
@@ -297,13 +297,14 @@ async def _import_meter_history(
             else:
                 price = entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
 
-            # Sort newest first for backward calculation
-            points.sort(key=lambda x: x["dt"], reverse=True)
+            # Forward calculation from zero - sort oldest first
+            points.sort(key=lambda x: x["dt"])
 
-            running_sum = anchor
+            running_sum = 0.0
             statistics = []
 
             for point in points:
+                running_sum += point["value"]
                 statistics.append(
                     {
                         "start": point["dt"],
@@ -311,10 +312,6 @@ async def _import_meter_history(
                         "state": point["value"],
                     }
                 )
-                running_sum -= point["value"]
-
-            # Sort oldest first for import
-            statistics.sort(key=lambda x: x["start"])
 
             # Build cost statistics
             cost_statistics = []
