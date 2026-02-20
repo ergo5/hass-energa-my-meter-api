@@ -249,25 +249,25 @@ async def _import_meter_history(
 
             # Process import data (total)
             for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
-                if hourly_value and hourly_value >= 0:
+                if hourly_value is not None and hourly_value >= 0:
                     hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
                     import_points.append({"dt": hour_dt, "value": hourly_value})
 
             # Process zone-specific import data
             if has_zones:
                 for hour_idx, hourly_value in enumerate(day_data.get("import_1", [])):
-                    if hourly_value and hourly_value > 0:
+                    if hourly_value is not None and hourly_value >= 0:
                         hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
                         import_1_points.append({"dt": hour_dt, "value": hourly_value})
 
                 for hour_idx, hourly_value in enumerate(day_data.get("import_2", [])):
-                    if hourly_value and hourly_value > 0:
+                    if hourly_value is not None and hourly_value >= 0:
                         hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
                         import_2_points.append({"dt": hour_dt, "value": hourly_value})
 
             # Process export data
             for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
-                if hourly_value and hourly_value >= 0:
+                if hourly_value is not None and hourly_value >= 0:
                     hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
                     export_points.append({"dt": hour_dt, "value": hourly_value})
 

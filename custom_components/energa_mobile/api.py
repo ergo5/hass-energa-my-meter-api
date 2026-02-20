@@ -263,7 +263,7 @@ class EnergaAPI:
             # Process each data key
             for key in keys:
                 for hour_idx, hourly_value in enumerate(day_data.get(key, [])):
-                    if hourly_value and hourly_value > 0:
+                    if hourly_value is not None and hourly_value >= 0:
                         hour_dt = day_start + timedelta(hours=hour_idx)
                         # Only include points after start_date
                         if hour_dt >= start_date:

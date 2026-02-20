@@ -104,10 +104,10 @@ class EnergaDataUpdater:
         running_sum = anchor
 
         for point in sorted_data:
-            hourly_value = point.get("value", 0) or 0
+            hourly_value = point.get("value") if point.get("value") is not None else 0
 
-            # Skip invalid values
-            if hourly_value <= 0 or hourly_value > 100:
+            # Skip invalid values (0 kWh is valid — no consumption that hour)
+            if hourly_value < 0 or hourly_value > 100:
                 continue
 
             energy_stats.append(
