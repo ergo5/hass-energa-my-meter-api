@@ -156,32 +156,33 @@ class EnergaDataUpdater:
         """Get anchor sum for backward calculation.
 
         Priority:
-        1. Pre-fetched stats from Coordinator (if available)
-        2. Meter total from API
-        3. Sum of all hourly values (fallback)
+        1. Meter total from API (authoritative, always correct)
+        2. Pre-fetched stats last_sum (as-is, no hourly addition)
+        3. Sum of all hourly values (fallback for first run)
         """
-        # Try pre-fetched stats first
-        if entity_id in self._pre_fetched_stats:
-            last_sum = self._pre_fetched_stats[entity_id].get("sum", 0)
-            if last_sum and last_sum > 0:
-                # Add hourly values to continue from last point
-                hourly_sum = sum(p.get("value", 0) or 0 for p in sorted_data)
-                anchor = last_sum + hourly_sum
-                _LOGGER.debug(
-                    "Using pre-fetched anchor for %s: %.3f", entity_id, anchor
-                )
-                return anchor
-
-        # Use meter total if available
+        # Priority 1: Meter total from API — most reliable anchor
         if meter_total and meter_total > 0:
             _LOGGER.debug(
-                "Using meter total anchor for %s: %.3f", entity_id, meter_total
+                "Anchor for %s: meter_total=%.3f (from API)", entity_id, meter_total
             )
             return meter_total
 
-        # Fallback: sum of all hourly values
+        # Priority 2: Last imported sum from recorder (no hourly addition!)
+        if entity_id in self._pre_fetched_stats:
+            last_sum = self._pre_fetched_stats[entity_id].get("sum", 0)
+            if last_sum and last_sum > 0:
+                _LOGGER.debug(
+                    "Anchor for %s: last_sum=%.3f (from pre-fetched stats)",
+                    entity_id,
+                    last_sum,
+                )
+                return last_sum
+
+        # Priority 3: Fallback — sum of all hourly values (first run only)
         hourly_sum = sum(p.get("value", 0) or 0 for p in sorted_data)
-        _LOGGER.debug("Using calculated anchor for %s: %.3f", entity_id, hourly_sum)
+        _LOGGER.debug(
+            "Anchor for %s: hourly_sum=%.3f (fallback)", entity_id, hourly_sum
+        )
         return hourly_sum
 
     def resolve_entity_id(self, meter_id: str, data_key: str) -> str | None:
