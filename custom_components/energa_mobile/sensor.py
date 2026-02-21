@@ -34,15 +34,8 @@ from homeassistant.loader import async_get_integration
 
 from .api import EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
 from .const import (
-    CONF_EXPORT_PRICE,
-    CONF_IMPORT_PRICE,
-    CONF_IMPORT_PRICE_1,
-    CONF_IMPORT_PRICE_2,
-    DEFAULT_EXPORT_PRICE,
-    DEFAULT_IMPORT_PRICE,
-    DEFAULT_IMPORT_PRICE_1,
-    DEFAULT_IMPORT_PRICE_2,
     DOMAIN,
+    get_price_for_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -299,7 +292,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
                 meter_id = meter["meter_point_id"]
                 has_zones = meter.get("zone_count", 1) > 1
 
-                # Store meter totals as anchors for backward calculation
+                # Store meter totals for reference
                 totals = {
                     "import": float(meter.get("total_plus", 0) or 0),
                     "export": float(meter.get("total_minus", 0) or 0),
@@ -428,7 +421,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
         return self._pre_fetched_stats
 
     def get_meter_total(self, meter_id: str, data_key: str) -> float:
-        """Get meter total (anchor) for backward calculation."""
+        """Get meter total reading from API data."""
         totals = self._meter_totals.get(meter_id, {})
         return totals.get(data_key, 0.0)
 
@@ -641,14 +634,7 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
     def _get_price(self) -> float:
         """Get price for this sensor's zone/type."""
-        if self._data_key == "import_1":
-            return self._entry.options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1)
-        elif self._data_key == "import_2":
-            return self._entry.options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2)
-        elif self._data_key == "import":
-            return self._entry.options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
-        else:
-            return self._entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
+        return get_price_for_key(dict(self._entry.options), self._data_key)
 
     @override
     @callback
@@ -697,15 +683,11 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
             pre_fetched_stats=self.coordinator.get_pre_fetched_stats(),
         )
 
-        # Get meter total as anchor
-        meter_total = self.coordinator.get_meter_total(self._meter_id, self._data_key)
-
         energy_stats, cost_stats = updater.gather_stats_for_sensor(
             meter_id=self._meter_id,
             data_key=self._data_key,
             hourly_data=hourly_data,
             entity_id=self.entity_id,
-            meter_total=meter_total,
         )
 
         if not energy_stats:

@@ -1,5 +1,6 @@
 """API interface for Energa My Meter."""
 
+import asyncio
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -254,6 +255,9 @@ class EnergaAPI:
             if target_date.date() > now.date():
                 break
 
+            if day_offset > 0:
+                await asyncio.sleep(0.3)
+
             day_data = await self.async_get_history_hourly(meter_point_id, target_date)
 
             day_start = target_date.replace(
@@ -263,7 +267,7 @@ class EnergaAPI:
             # Process each data key
             for key in keys:
                 for hour_idx, hourly_value in enumerate(day_data.get(key, [])):
-                    if hourly_value and hourly_value > 0:
+                    if hourly_value is not None and hourly_value >= 0:
                         hour_dt = day_start + timedelta(hours=hour_idx)
                         # Only include points after start_date
                         if hour_dt >= start_date:

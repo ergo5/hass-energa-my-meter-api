@@ -1,38 +1,27 @@
 """
 Data updater for Energa My Meter - Smart Statistics.
 
-Uses backward calculation from anchor (like fetch_history).
-Anchor = last sum from existing statistics (if available) or meter total.
-No blocking database calls - uses pre-fetched stats from Coordinator.
+Forward-only calculation: adds hourly values to last known sum (or 0).
+Guarantees monotonically increasing, non-negative sums.
 """
 
 import logging
-from zoneinfo import ZoneInfo
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 from .const import (
-    CONF_EXPORT_PRICE,
-    CONF_IMPORT_PRICE,
-    CONF_IMPORT_PRICE_1,
-    CONF_IMPORT_PRICE_2,
-    DEFAULT_EXPORT_PRICE,
-    DEFAULT_IMPORT_PRICE,
-    DEFAULT_IMPORT_PRICE_1,
-    DEFAULT_IMPORT_PRICE_2,
     DOMAIN,
+    MAX_HOURLY_KWH,
+    get_price_for_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class EnergaDataUpdater:
-    """Handle incremental statistics updates for Energa sensors.
-
-    Uses backward calculation from anchor - same approach as fetch_history.
-    This avoids blocking database queries during callback execution.
-    """
+    """Handle incremental statistics updates for Energa sensors."""
 
     def __init__(
         self,
@@ -40,17 +29,9 @@ class EnergaDataUpdater:
         entry: ConfigEntry,
         pre_fetched_stats: dict | None = None,
     ) -> None:
-        """Initialize updater.
-
-        Args:
-            hass: Home Assistant instance
-            entry: Config entry
-            pre_fetched_stats: Pre-fetched statistics from Coordinator (async)
-        """
         self.hass = hass
         self.entry = entry
         self._pre_fetched_stats = pre_fetched_stats or {}
-        self._tz = ZoneInfo("Europe/Warsaw")
 
     def gather_stats_for_sensor(
         self,
@@ -58,83 +39,44 @@ class EnergaDataUpdater:
         data_key: str,
         hourly_data: list[dict],
         entity_id: str,
-        meter_total: float | None = None,
     ) -> tuple[list, list]:
-        """Build statistics using backward calculation from anchor.
+        """Build statistics for import into recorder.
 
-        Args:
-            meter_id: Meter ID
-            data_key: "import" or "export"
-            hourly_data: List of {"dt": datetime, "value": float}
-            entity_id: The actual entity_id for this sensor
-            meter_total: Current meter total from API (anchor fallback)
-
-        Returns:
-            (energy_stats, cost_stats) lists ready for async_import_statistics
+        Always uses forward calculation: adds hourly values to last known sum.
+        Starts from sum=0 when no existing stats are available.
         """
         if not hourly_data:
             _LOGGER.debug("No hourly data for %s", entity_id)
             return [], []
 
-        # Sort by datetime (newest first for backward calculation)
-        sorted_data = sorted(hourly_data, key=lambda x: x["dt"], reverse=True)
-
-        # Get anchor (starting sum)
-        anchor = self._get_anchor(entity_id, meter_total, sorted_data)
-
-        _LOGGER.debug(
-            "DataUpdater for %s: anchor=%.3f, points=%d",
-            entity_id,
-            anchor,
-            len(sorted_data),
-        )
-
         # Get price for cost calculation
-        if data_key == "import":
-            price = self.entry.options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
-        elif data_key == "import_1":
-            price = self.entry.options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1)
-        elif data_key == "import_2":
-            price = self.entry.options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2)
-        else:
-            price = self.entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
+        price = get_price_for_key(dict(self.entry.options), data_key)
 
-        # Build statistics using backward calculation
-        energy_stats = []
-        running_sum = anchor
+        # Forward calculation - from last known sum or 0
+        pre_fetched = self._pre_fetched_stats.get(entity_id)
 
-        for point in sorted_data:
-            hourly_value = point.get("value", 0) or 0
-
-            # Skip invalid values
-            if hourly_value <= 0 or hourly_value > 100:
-                continue
-
-            energy_stats.append(
-                {
-                    "start": point["dt"],
-                    "sum": running_sum,
-                    "state": hourly_value,
-                }
+        if pre_fetched and pre_fetched.get("sum") is not None:
+            energy_stats = self._forward_calculation(
+                hourly_data, pre_fetched, entity_id
             )
-            running_sum -= hourly_value
+        else:
+            # First run or after stats clear - start from 0
+            energy_stats = self._forward_calculation(
+                hourly_data, {"sum": 0, "start": None}, entity_id
+            )
 
-        # Sort oldest first for import
-        energy_stats.sort(key=lambda x: x["start"])
+        if not energy_stats:
+            return [], []
 
-        # Build cost statistics — derived from energy sum to stay synchronized.
-        # cost_sum = energy_sum × price avoids anchor desynchronization.
+        # Build cost statistics (derived from energy sum)
         cost_stats = []
-
         for stat in energy_stats:
             hourly_energy = stat["state"] or 0
-            hourly_cost = hourly_energy * price
-            cost_sum = stat["sum"] * price
             cost_stats.append(
                 {
                     "start": stat["start"],
-                    "sum": cost_sum,
-                    "state": hourly_cost,
+                    "sum": stat["sum"] * price,
+                    "state": hourly_energy * price,
                 }
             )
 
@@ -147,57 +89,62 @@ class EnergaDataUpdater:
 
         return energy_stats, cost_stats
 
-    def _get_anchor(
-        self,
-        entity_id: str,
-        meter_total: float | None,
-        sorted_data: list[dict],
-    ) -> float:
-        """Get anchor sum for backward calculation.
+    def _forward_calculation(
+        self, hourly_data: list[dict], pre_fetched: dict, entity_id: str
+    ) -> list[dict]:
+        """Forward calculation: add hourly values to last known sum.
 
-        Priority:
-        1. Pre-fetched stats from Coordinator (if available)
-        2. Meter total from API
-        3. Sum of all hourly values (fallback)
+        Guarantees monotonically increasing sums, consistent with existing stats.
+        Only writes NEW points (after last known stat).
         """
-        # Try pre-fetched stats first
-        if entity_id in self._pre_fetched_stats:
-            last_sum = self._pre_fetched_stats[entity_id].get("sum", 0)
-            if last_sum and last_sum > 0:
-                # Add hourly values to continue from last point
-                hourly_sum = sum(p.get("value", 0) or 0 for p in sorted_data)
-                anchor = last_sum + hourly_sum
-                _LOGGER.debug(
-                    "Using pre-fetched anchor for %s: %.3f", entity_id, anchor
-                )
-                return anchor
+        last_sum = pre_fetched.get("sum", 0)
+        last_start = pre_fetched.get("start")
 
-        # Use meter total if available
-        if meter_total and meter_total > 0:
+        # Sort oldest first
+        sorted_data = sorted(hourly_data, key=lambda x: x["dt"])
+
+        # Filter: only points AFTER last known stat
+        if last_start is not None:
+            if isinstance(last_start, (int, float)):
+                last_dt = dt_util.utc_from_timestamp(last_start)
+            else:
+                last_dt = last_start
+            sorted_data = [p for p in sorted_data if p["dt"] > last_dt]
+
+        if not sorted_data:
             _LOGGER.debug(
-                "Using meter total anchor for %s: %.3f", entity_id, meter_total
+                "Forward calc: no new points after last stat for %s", entity_id
             )
-            return meter_total
+            return []
 
-        # Fallback: sum of all hourly values
-        hourly_sum = sum(p.get("value", 0) or 0 for p in sorted_data)
-        _LOGGER.debug("Using calculated anchor for %s: %.3f", entity_id, hourly_sum)
-        return hourly_sum
+        running_sum = last_sum
+        energy_stats = []
 
-    def resolve_entity_id(self, meter_id: str, data_key: str) -> str | None:
-        """Resolve entity_id from entity registry.
+        for point in sorted_data:
+            hourly_value = point.get("value") if point.get("value") is not None else 0
 
-        Returns the actual HA entity_id for Panel Energia sensors.
-        """
-        from homeassistant.helpers import entity_registry as er
+            if hourly_value < 0 or hourly_value > MAX_HOURLY_KWH:
+                _LOGGER.warning(
+                    "Spike guard: skipping %.1f kWh for %s", hourly_value, entity_id
+                )
+                continue
 
-        registry = er.async_get(self.hass)
+            running_sum += hourly_value
+            energy_stats.append(
+                {
+                    "start": point["dt"],
+                    "sum": running_sum,
+                    "state": hourly_value,
+                }
+            )
 
-        # Look for our sensor with the stats suffix
-        unique_id_pattern = f"energa_{meter_id}_{data_key}_stats"
+        _LOGGER.debug(
+            "Forward calc for %s: last_sum=%.3f, new_points=%d, final_sum=%.3f",
+            entity_id,
+            last_sum,
+            len(energy_stats),
+            running_sum,
+        )
 
-        for entity in registry.entities.values():
-            if entity.unique_id == unique_id_pattern and entity.platform == DOMAIN:
-                return entity.entity_id
+        return energy_stats
 
-        return None

@@ -369,11 +369,13 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             ]
 
             if statistic_ids:
-                rec.async_clear_statistics(statistic_ids)
+                cost_statistic_ids = [f"{sid}_cost" for sid in statistic_ids]
+                all_statistic_ids = statistic_ids + cost_statistic_ids
+                rec.async_clear_statistics(all_statistic_ids)
                 _LOGGER.info(
                     "Cleared Energy Panel statistics for %d Energa sensors: %s",
                     len(statistic_ids),
-                    statistic_ids,
+                    all_statistic_ids,
                 )
             else:
                 _LOGGER.warning("No Energa Panel Energia sensors found to clear")
