@@ -35,23 +35,15 @@ from .api import (
 )
 from .const import (
     CONF_DEVICE_TOKEN,
-    CONF_EXPORT_PRICE,
-    CONF_IMPORT_PRICE,
-    CONF_IMPORT_PRICE_1,
-    CONF_IMPORT_PRICE_2,
     CONF_PASSWORD,
     CONF_USERNAME,
-    DEFAULT_EXPORT_PRICE,
-    DEFAULT_IMPORT_PRICE,
-    DEFAULT_IMPORT_PRICE_1,
-    DEFAULT_IMPORT_PRICE_2,
     DOMAIN,
+    get_price_for_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
 TIMEZONE = ZoneInfo("Europe/Warsaw")
-UTC = ZoneInfo("UTC")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -205,22 +197,6 @@ async def _import_meter_history(
     )
 
     try:
-        # Get current meter readings as anchors
-        anchor_import = float(meter.get("total_plus") or 0)
-        anchor_export = float(meter.get("total_minus") or 0)
-        anchor_import_1 = float(meter.get("total_plus_1") or 0) if has_zones else 0
-        anchor_import_2 = float(meter.get("total_plus_2") or 0) if has_zones else 0
-
-        if anchor_import <= 0:
-            _LOGGER.error("Invalid anchor for import (total_plus=0)")
-            persistent_notification.async_create(
-                hass,
-                f"Brak punktu odniesienia dla licznika {serial}",
-                title="Energa: Błąd",
-                notification_id=f"energa_import_{meter_id}",
-            )
-            return
-
         # Collect all hourly data
         import_points = []
         import_1_points = []
@@ -282,20 +258,13 @@ async def _import_meter_history(
         )
 
         def build_statistics(
-            points: list, anchor: float, entity_suffix: str, entry: ConfigEntry
+            points: list, entity_suffix: str, entry: ConfigEntry
         ) -> int:
             if not points:
                 return 0
 
             # Get price from config options
-            if entity_suffix == "import_1":
-                price = entry.options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1)
-            elif entity_suffix == "import_2":
-                price = entry.options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2)
-            elif entity_suffix == "import":
-                price = entry.options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
-            else:
-                price = entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
+            price = get_price_for_key(dict(entry.options), entity_suffix)
 
             # Forward calculation from zero - sort oldest first
             points.sort(key=lambda x: x["dt"])
@@ -387,9 +356,9 @@ async def _import_meter_history(
 
         # Build and import statistics
         if has_zones:
-            count_1 = build_statistics(import_1_points, anchor_import_1, "import_1", entry)
-            count_2 = build_statistics(import_2_points, anchor_import_2, "import_2", entry)
-            count_export = build_statistics(export_points, anchor_export, "export", entry)
+            count_1 = build_statistics(import_1_points, "import_1", entry)
+            count_2 = build_statistics(import_2_points, "import_2", entry)
+            count_export = build_statistics(export_points, "export", entry)
             total_count = count_1 + count_2 + count_export
 
             persistent_notification.async_create(
@@ -401,8 +370,8 @@ async def _import_meter_history(
                 notification_id=f"energa_import_{meter_id}",
             )
         else:
-            count_import = build_statistics(import_points, anchor_import, "import", entry)
-            count_export = build_statistics(export_points, anchor_export, "export", entry)
+            count_import = build_statistics(import_points, "import", entry)
+            count_export = build_statistics(export_points, "export", entry)
             total_count = count_import + count_export
 
             persistent_notification.async_create(

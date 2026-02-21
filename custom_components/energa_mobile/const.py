@@ -29,3 +29,17 @@ HEADERS = {
     "Accept-Language": "pl-PL;q=1.0, en-PL;q=0.9",
     "Content-Type": "application/json",
 }
+
+# Spike guard: maximum plausible hourly energy consumption in kWh
+MAX_HOURLY_KWH = 100
+
+
+def get_price_for_key(options: dict, data_key: str) -> float:
+    """Get the configured price for a given data key."""
+    if data_key == "import_1":
+        return float(options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1))
+    if data_key == "import_2":
+        return float(options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2))
+    if data_key == "export":
+        return float(options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE))
+    return float(options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE))

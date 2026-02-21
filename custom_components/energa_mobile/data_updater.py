@@ -6,22 +6,15 @@ Guarantees monotonically increasing, non-negative sums.
 """
 
 import logging
-from zoneinfo import ZoneInfo
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    CONF_EXPORT_PRICE,
-    CONF_IMPORT_PRICE,
-    CONF_IMPORT_PRICE_1,
-    CONF_IMPORT_PRICE_2,
-    DEFAULT_EXPORT_PRICE,
-    DEFAULT_IMPORT_PRICE,
-    DEFAULT_IMPORT_PRICE_1,
-    DEFAULT_IMPORT_PRICE_2,
     DOMAIN,
+    MAX_HOURLY_KWH,
+    get_price_for_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,7 +32,6 @@ class EnergaDataUpdater:
         self.hass = hass
         self.entry = entry
         self._pre_fetched_stats = pre_fetched_stats or {}
-        self._tz = ZoneInfo("Europe/Warsaw")
 
     def gather_stats_for_sensor(
         self,
@@ -47,7 +39,6 @@ class EnergaDataUpdater:
         data_key: str,
         hourly_data: list[dict],
         entity_id: str,
-        meter_total: float | None = None,  # kept for API compat, unused
     ) -> tuple[list, list]:
         """Build statistics for import into recorder.
 
@@ -59,7 +50,7 @@ class EnergaDataUpdater:
             return [], []
 
         # Get price for cost calculation
-        price = self._get_price(data_key)
+        price = get_price_for_key(dict(self.entry.options), data_key)
 
         # Forward calculation - from last known sum or 0
         pre_fetched = self._pre_fetched_stats.get(entity_id)
@@ -132,7 +123,10 @@ class EnergaDataUpdater:
         for point in sorted_data:
             hourly_value = point.get("value") if point.get("value") is not None else 0
 
-            if hourly_value < 0 or hourly_value > 100:
+            if hourly_value < 0 or hourly_value > MAX_HOURLY_KWH:
+                _LOGGER.warning(
+                    "Spike guard: skipping %.1f kWh for %s", hourly_value, entity_id
+                )
                 continue
 
             running_sum += hourly_value
@@ -154,31 +148,3 @@ class EnergaDataUpdater:
 
         return energy_stats
 
-    def _get_price(self, data_key: str) -> float:
-        """Get price for a given data key."""
-        if data_key == "import":
-            return self.entry.options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
-        elif data_key == "import_1":
-            return self.entry.options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1)
-        elif data_key == "import_2":
-            return self.entry.options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2)
-        else:
-            return self.entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
-
-    def resolve_entity_id(self, meter_id: str, data_key: str) -> str | None:
-        """Resolve entity_id from entity registry.
-
-        Returns the actual HA entity_id for Panel Energia sensors.
-        """
-        from homeassistant.helpers import entity_registry as er
-
-        registry = er.async_get(self.hass)
-
-        # Look for our sensor with the stats suffix
-        unique_id_pattern = f"energa_{meter_id}_{data_key}_stats"
-
-        for entity in registry.entities.values():
-            if entity.unique_id == unique_id_pattern and entity.platform == DOMAIN:
-                return entity.entity_id
-
-        return None

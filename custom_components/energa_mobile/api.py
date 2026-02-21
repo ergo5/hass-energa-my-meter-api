@@ -1,5 +1,6 @@
 """API interface for Energa My Meter."""
 
+import asyncio
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -253,6 +254,9 @@ class EnergaAPI:
             # Skip future dates
             if target_date.date() > now.date():
                 break
+
+            if day_offset > 0:
+                await asyncio.sleep(0.3)
 
             day_data = await self.async_get_history_hourly(meter_point_id, target_date)
 
