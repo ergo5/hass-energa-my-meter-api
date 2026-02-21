@@ -1,5 +1,41 @@
 # Changelog
 
+## v4.4.1 (2026-02-21) - G12w Bugfixes & Code Cleanup
+
+### 🐛 Bug Fixes
+- **Statistics spike fix:** `_get_anchor()` was double-counting already-imported data, causing cumulative sum to grow exponentially each coordinator cycle
+- **Zero-consumption hours:** `bool(0.0)` evaluates to `False` in Python — hours with 0 kWh were silently skipped. Fixed to `if hourly_value is not None and hourly_value >= 0:`
+- **Negative deltas at boundary:** Backward-from-meter_total calculation created negative deltas at the boundary between `fetch_history` and coordinator data
+- **Negative sums for new zones:** Backward calculation caused negative sums for newly activated tariff zones (e.g., G12w zone 2 started at -12.886 kWh)
+- **Clear stats now includes costs:** `async_clear_statistics()` was missing `_cost` statistic IDs, leaving orphaned cost data
+
+### 🔧 Code Quality
+- **Forward-from-zero calculation:** Replaced backward anchor-based calculation with forward-from-zero approach — guarantees monotonically increasing, non-negative sums
+- **Deduplicated price logic:** Extracted `get_price_for_key()` helper in `const.py`, replacing identical code in 3 files
+- **Rate limiting:** Added 0.3s delay between API requests in coordinator path to prevent throttling
+- **Spike guard constant:** Replaced hardcoded `100` with `MAX_HOURLY_KWH` constant, added warning log
+- **Dead code cleanup:** Removed unused `resolve_entity_id()`, `_tz`, `UTC` constant, anchor parameters
+
+> **Note:** Forward-from-zero produces identical Energy Dashboard results (HA uses sum differences). No user action required after update.
+
+## v4.4.0 (2026-02-19) - G12w Multi-Zone Tariff Support
+
+### ✨ New Features
+- **G12w multi-zone tariff support:** Automatic detection and separate tracking of peak (zone 1) and off-peak (zone 2) consumption
+- **Zone-specific pricing:** Configurable prices per zone via Options Flow
+- **New sensors for G12w:** `Panel Energia Strefa 1`, `Panel Energia Strefa 2` with corresponding cost sensors
+- **Zone-aware history import:** Downloads and imports zone-specific hourly data
+
+### 🔧 Changes
+- Options Flow dynamically shows zone-specific or single price fields based on detected meter type
+- `clear_stats` extended to include zone-specific statistic IDs
+
+## v4.3.10 (2026-02-13) - Negative Cost Fix
+
+- Fixed: Negative cost values appearing in Energy Dashboard
+- Root cause: Cost statistics not being cleared/recalculated when energy statistics were updated
+- Affects: Users who previously ran history import and saw negative PLN values
+
 ## v4.3.9 (2026-02-11) - Hour Offset Fix
 
 - Fixed: Hourly statistics were shifted +1 hour compared to Energa app
