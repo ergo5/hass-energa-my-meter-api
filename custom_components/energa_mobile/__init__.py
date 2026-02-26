@@ -54,7 +54,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Get device token from config (may not exist in old installations)
     device_token = entry.data.get(CONF_DEVICE_TOKEN) or secrets.token_hex(32)
     api = EnergaAPI(
-        entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD], device_token, session
+        entry.data[CONF_USERNAME],
+        entry.data[CONF_PASSWORD],
+        device_token,
+        session,
+        create_session_fn=lambda: aiohttp.ClientSession(),
     )
 
     # Login to API
@@ -143,9 +147,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Process each active meter
         for meter in active_meters:
-            hass.async_create_task(
-                _import_meter_history(hass, api, meter, start_date, days, entry)
-            )
+            await _import_meter_history(hass, api, meter, start_date, days, entry)
 
     hass.services.async_register(
         DOMAIN,
@@ -303,7 +305,9 @@ async def _import_meter_history(
                 "import_2": "panel_energia_strefa_2",
                 "export": "panel_energia_produkcja",
             }
-            energy_sensor_name = suffix_to_name.get(entity_suffix, f"panel_{entity_suffix}")
+            energy_sensor_name = suffix_to_name.get(
+                entity_suffix, f"panel_{entity_suffix}"
+            )
             entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
 
             # Import energy statistics

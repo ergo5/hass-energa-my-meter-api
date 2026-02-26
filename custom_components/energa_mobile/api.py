@@ -33,12 +33,18 @@ class EnergaTokenExpiredError(Exception):
 
 class EnergaAPI:
     def __init__(
-        self, username, password, device_token: str, session: aiohttp.ClientSession
+        self,
+        username,
+        password,
+        device_token: str,
+        session: aiohttp.ClientSession,
+        create_session_fn=None,
     ):
         self._username = username
         self._password = password
         self._device_token = device_token  # Unique per-installation token
         self._session = session
+        self._create_session_fn = create_session_fn or (lambda: aiohttp.ClientSession())
         self._token = None  # Server-returned token (may be empty in newer API)
         self._meters_data = []
         self._hass = None  # Reference to HA instance for statistics queries
@@ -443,16 +449,43 @@ class EnergaAPI:
             return []
 
     async def _api_get(self, path, params=None):
-        url = f"{BASE_URL}{path}"
-        final_params = params.copy() if params else {}
-        # Only add token if parameters don't effectively have it and we have one
-        if self._token and "token" not in final_params:
-            final_params["token"] = self._token
+        for attempt in range(2):
+            # Recover from closed session
+            if self._session.closed:
+                _LOGGER.warning(
+                    "Session closed (attempt %d), creating new session and re-logging in",
+                    attempt + 1,
+                )
+                self._session = self._create_session_fn()
+                await self.async_login()
 
-        async with self._session.get(url, headers=HEADERS, params=final_params) as resp:
-            # Handle 401/403 which might indicate session expiry or invalid token
-            if resp.status == 401 or resp.status == 403:
-                raise EnergaTokenExpiredError(f"API returned {resp.status} for {url}")
+            url = f"{BASE_URL}{path}"
+            final_params = params.copy() if params else {}
+            if self._token and "token" not in final_params:
+                final_params["token"] = self._token
 
-            resp.raise_for_status()
-            return await resp.json()
+            try:
+                async with self._session.get(
+                    url, headers=HEADERS, params=final_params
+                ) as resp:
+                    if resp.status in (401, 403):
+                        if attempt == 0:
+                            _LOGGER.warning(
+                                "Token expired (HTTP %d), re-logging in", resp.status
+                            )
+                            await self.async_login()
+                            continue
+                        raise EnergaTokenExpiredError(
+                            f"API returned {resp.status} for {url}"
+                        )
+                    resp.raise_for_status()
+                    return await resp.json()
+            except (aiohttp.ClientError, RuntimeError) as err:
+                if attempt == 0 and (
+                    self._session.closed or "Session is closed" in str(err)
+                ):
+                    _LOGGER.warning("Request failed (session issue: %s), retrying", err)
+                    continue
+                raise EnergaConnectionError(str(err)) from err
+        # Should not reach here, but safety net
+        raise EnergaConnectionError("Max retries exceeded in _api_get")
