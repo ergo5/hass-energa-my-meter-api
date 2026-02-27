@@ -36,7 +36,7 @@ This integration communicates directly with Energa's **native REST API** (`api-m
 *   **💰 Automatic Cost Calculation:** Calculates energy costs in PLN based on configured prices.
 *   **🛡️ Forward-From-Zero Statistics:** Monotonically increasing sums with spike guard protection.
 *   **⚡ Hourly Granularity:** Precise hourly consumption/production tracking.
-*   **🔌 G12w Multi-Zone Tariff:** Automatic detection of multi-zone meters with separate peak/off-peak tracking.
+*   **🔌 Multi-Zone Tariffs (G12/G12w):** Automatic detection of two-zone meters with separate peak/off-peak tracking.
 *   **🛠️ Auto-Repair (Self-Healing):** The "Download History" feature automatically fixes gaps and corrupted data.
 *   **🔍 OBIS Auto-Detect:** Automatically identifies usage (1.8.0) and production (2.8.0).
 
@@ -52,7 +52,7 @@ The integration **automatically calculates energy costs** and displays them in t
 - These sensors work seamlessly with the Energy Dashboard to show costs alongside energy usage
 
 > [!NOTE]
-> **G12w tariffs** are fully supported with separate zone pricing. Other dynamic/time-of-use tariffs have not been tested.
+> **Two-zone tariffs** (G12, G12w, G12r) are fully supported with separate zone pricing. Three-zone tariffs (G13) are not currently supported.
 
 ---
 
@@ -83,12 +83,12 @@ To enable cost calculation, you must configure energy prices:
 | Tariff | Field | Default (PLN/kWh) |
 |---|---|---|
 | **G11** (single-zone) | Import | 1.188 |
-| **G12w** zone 1 (peak) | Import Zone 1 | 1.2453 |
-| **G12w** zone 2 (off-peak) | Import Zone 2 | 0.5955 |
+| **G12/G12w** zone 1 (peak) | Import Zone 1 | 1.2453 |
+| **G12/G12w** zone 2 (off-peak) | Import Zone 2 | 0.5955 |
 | All tariffs | Export | 0.95 |
 
 > [!TIP]
-> The options form automatically adapts to your tariff — G12w meters will see zone-specific fields, G11 meters will see a single import price.
+> The options form automatically adapts to your tariff — two-zone meters (G12/G12w) will see zone-specific fields, single-zone meters (G11) will see a single import price.
 
 ---
 
@@ -106,7 +106,7 @@ The integration creates multiple sensors organized by function:
 | `Panel Energia Zużycie Cost` | Consumption cost (PLN) | Auto-created for cost tracking |
 | `Panel Energia Produkcja Cost` | Production compensation (PLN) | Auto-created for cost tracking |
 
-#### G12w Multi-Zone Sensors (auto-created for G12w tariffs)
+#### Multi-Zone Sensors (auto-created for G12/G12w tariffs)
 
 | Sensor Name | Description | Purpose |
 |-------------|-------------|---------|
@@ -131,7 +131,7 @@ The integration creates multiple sensors organized by function:
 | Sensor Name | Description |
 |-------------|-------------|
 | `Adres` | Installation address |
-| `Taryfa` | Tariff type (e.g., G11, G12w) |
+| `Taryfa` | Tariff type (e.g., G11, G12, G12w) |
 | `PPE` | PPE identification number |
 | `Numer Licznika` | Meter serial number |
 | `Data Aktywacji` | Mój Licznik app activation date* |
@@ -194,7 +194,7 @@ Use this feature if you have missing data OR if you see incorrect spikes in your
 
 ## ⚠️ Limitations
 
-- **Supported Tariffs:** G11 (single-zone) and G12w (two-zone peak/off-peak) are fully supported. Other tariff types (G12, G13) have not been tested.
+- **Supported Tariffs:** G11 (single-zone) and two-zone tariffs (G12, G12w, G12r) are fully supported. Three-zone tariffs (G13) are not supported — if you need G13, please [open an issue](https://github.com/ergo5/hass-energa-my-meter-api/issues).
 - **PLN Currency:** Cost calculation is in Polish złoty (PLN) only.
 - **Statistics Sensors:** Panel Energia sensors may show as "Unavailable" in entity lists (this is normal — they work in Energy Dashboard).
 - **Hourly Granularity:** Statistics are hourly — no sub-hour precision.
