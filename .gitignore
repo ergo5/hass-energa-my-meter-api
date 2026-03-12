@@ -28,6 +28,7 @@ temp_*.py
 last_comment.txt
 
 # Debug/Investigation scripts (local only)
+diag_*.py
 check_*.py
 clear_*.py
 deep_*.py

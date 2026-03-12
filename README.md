@@ -59,10 +59,9 @@ The integration **automatically calculates energy costs** and displays them in t
 ## 📦 Installation
 
 ### Option 1: HACS (Recommended)
-1.  Open **HACS** -> **Integrations** -> **Custom repositories**.
-2.  Add URL: `https://github.com/ergo5/hass-energa-my-meter-api`
-3.  Category: **Integration**.
-4.  Install **Energa My Meter** and restart Home Assistant.
+1.  Open **HACS** → **Integrations**.
+2.  Search for **Energa My Meter**.
+3.  Click **Install** and restart Home Assistant.
 
 ### Configuration
 1.  Go to **Settings** -> **Devices & Services**.
