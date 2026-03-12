@@ -1,6 +1,6 @@
 {
   "domain": "energa_mobile",
-  "name": "Energa My Meter",
+  "name": "Energa My Meter API (Mój Licznik API)",
   "after_dependencies": [
     "recorder"
   ],
@@ -13,5 +13,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/ergo5/hass-energa-my-meter-api/issues",
   "requirements": [],
-  "version": "4.5.0"
+  "version": "4.5.1"
 }
