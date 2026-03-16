@@ -207,17 +207,34 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             return api.has_multi_zone_meters()
         return False
 
+    def _get_active_meters(self) -> list:
+        """Get list of active meters from API."""
+        entry_data = self.hass.data.get(DOMAIN, {}).get(
+            self._config_entry.entry_id, {}
+        )
+        api = entry_data.get("api") if isinstance(entry_data, dict) else None
+        if api and api._meters_data:
+            return [
+                m for m in api._meters_data
+                if m.get("total_plus") and float(m.get("total_plus", 0)) > 0
+            ]
+        return []
+
     async def async_step_prices(self, user_input=None):
         """Handle energy price configuration."""
         if user_input is not None:
-            # Store prices in options
+            # Save global prices
             new_options = {**self._config_entry.options, **user_input}
-            self.hass.config_entries.async_update_entry(
-                self._config_entry,
-                options=new_options,
-            )
-            # Reload integration to apply new prices
-            await self.hass.config_entries.async_reload(self._config_entry.entry_id)
+
+            # Also save per-meter prices for each active meter
+            meters = self._get_active_meters()
+            for meter in meters:
+                serial = meter.get("meter_serial", meter["meter_point_id"])
+                for key, val in user_input.items():
+                    meter_key = f"meter_{serial}_{key}"
+                    new_options[meter_key] = val
+
+            _LOGGER.debug("Saving options with %d keys: %s", len(new_options), list(new_options.keys()))
             return self.async_create_entry(title="", data=new_options)
 
         has_zones = self._has_multi_zone_meters()
