@@ -38,6 +38,7 @@ from .const import (
     CONF_PASSWORD,
     CONF_USERNAME,
     DOMAIN,
+    MAX_HOURLY_KWH,
     get_price_for_key,
 )
 
@@ -161,7 +162,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ),
     )
 
+    # Reload integration when options change (e.g. prices updated)
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+
     return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        entry_data = hass.data[DOMAIN].pop(entry.entry_id)
+        # Close dedicated session
+        if isinstance(entry_data, dict) and "session" in entry_data:
+            await entry_data["session"].close()
+        # Unregister service if no more entries remain
+        if not hass.data[DOMAIN]:
+            hass.services.async_remove(DOMAIN, "fetch_history")
+    return unload_ok
+
+
+async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload integration when options are updated."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def _import_meter_history(
@@ -275,12 +298,22 @@ async def _import_meter_history(
             statistics = []
 
             for point in points:
-                running_sum += point["value"]
+                hourly_value = point["value"]
+
+                # Spike guard: skip anomalous values (same as data_updater)
+                if hourly_value < 0 or hourly_value > MAX_HOURLY_KWH:
+                    _LOGGER.warning(
+                        "Import spike guard: skipping %.1f kWh for %s at %s",
+                        hourly_value, serial, point["dt"],
+                    )
+                    continue
+
+                running_sum += hourly_value
                 statistics.append(
                     {
                         "start": point["dt"],
                         "sum": running_sum,
-                        "state": point["value"],
+                        "state": hourly_value,
                     }
                 )
 
@@ -397,17 +430,3 @@ async def _import_meter_history(
             title="Energa: Błąd",
             notification_id=f"energa_import_{meter_id}",
         )
-
-
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        entry_data = hass.data[DOMAIN].pop(entry.entry_id)
-        # Close dedicated session
-        if isinstance(entry_data, dict) and "session" in entry_data:
-            await entry_data["session"].close()
-        # Unregister service if no more entries remain
-        if not hass.data[DOMAIN]:
-            hass.services.async_remove(DOMAIN, "fetch_history")
-    return unload_ok

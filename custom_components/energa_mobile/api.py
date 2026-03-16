@@ -48,6 +48,8 @@ class EnergaAPI:
         self._token = None  # Server-returned token (may be empty in newer API)
         self._meters_data = []
         self._hass = None  # Reference to HA instance for statistics queries
+        self._api_warning = None  # Last non-null warning from API
+        self._api_error = None  # Last non-null error from API
 
     def set_hass(self, hass):
         """Set Home Assistant instance reference for database queries."""
@@ -479,7 +481,35 @@ class EnergaAPI:
                             f"API returned {resp.status} for {url}"
                         )
                     resp.raise_for_status()
-                    return await resp.json()
+                    data = await resp.json()
+
+                    # Capture API warnings/errors for HA notifications
+                    api_warning = data.get("warning") if isinstance(data, dict) else None
+                    api_error = data.get("error") if isinstance(data, dict) else None
+                    if api_warning and api_warning != self._api_warning:
+                        self._api_warning = api_warning
+                        _LOGGER.warning("Energa API warning: %s", api_warning)
+                        if self._hass:
+                            from homeassistant.components import persistent_notification
+                            persistent_notification.async_create(
+                                self._hass,
+                                str(api_warning),
+                                title="Energa: Komunikat",
+                                notification_id="energa_api_warning",
+                            )
+                    if api_error and api_error != self._api_error:
+                        self._api_error = api_error
+                        _LOGGER.error("Energa API error: %s", api_error)
+                        if self._hass:
+                            from homeassistant.components import persistent_notification
+                            persistent_notification.async_create(
+                                self._hass,
+                                str(api_error),
+                                title="Energa: Błąd API",
+                                notification_id="energa_api_error",
+                            )
+
+                    return data
             except (aiohttp.ClientError, RuntimeError) as err:
                 if attempt == 0 and (
                     self._session.closed or "Session is closed" in str(err)
