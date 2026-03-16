@@ -34,12 +34,30 @@ HEADERS = {
 MAX_HOURLY_KWH = 100
 
 
-def get_price_for_key(options: dict, data_key: str) -> float:
-    """Get the configured price for a given data key."""
-    if data_key == "import_1":
-        return float(options.get(CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1))
-    if data_key == "import_2":
-        return float(options.get(CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2))
-    if data_key == "export":
-        return float(options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE))
-    return float(options.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE))
+def get_price_for_key(
+    options: dict, data_key: str, meter_id: str | None = None
+) -> float:
+    """Get the configured price for a given data key.
+
+    Supports per-meter pricing: if meter_id is provided, looks for
+    meter-specific keys first (e.g. 'meter_30132815_import_price'),
+    then falls back to global keys.
+    """
+    key_map = {
+        "import": (CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE),
+        "import_1": (CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1),
+        "import_2": (CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2),
+        "export": (CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE),
+    }
+
+    conf_key, default_val = key_map.get(
+        data_key, (CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
+    )
+
+    # Per-meter override: meter_{serial}_{key}
+    if meter_id:
+        meter_key = f"meter_{meter_id}_{conf_key}"
+        if meter_key in options:
+            return float(options[meter_key])
+
+    return float(options.get(conf_key, default_val))
