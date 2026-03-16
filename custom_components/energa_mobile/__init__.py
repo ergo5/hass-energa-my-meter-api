@@ -272,6 +272,59 @@ async def _import_meter_history(
                     hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
                     export_points.append({"dt": hour_dt, "value": hourly_value})
 
+        # Extend import to today to prevent sum discontinuity with live stats.
+        # Without this, partial imports (e.g., from March 1) create a gap:
+        # import ends with sum=45, but coordinator already wrote today's stats
+        # starting from sum=0, causing a spike in the Energy Panel.
+        last_imported = start_date + timedelta(days=days - 1)
+        today = datetime.now(TIMEZONE)
+        if last_imported.date() < today.date():
+            extra_start = last_imported + timedelta(days=1)
+            extra_days = (today.date() - extra_start.date()).days + 1
+            _LOGGER.info(
+                "Extending import to today (+%d extra days) for sum continuity",
+                extra_days,
+            )
+            for extra_offset in range(extra_days):
+                target_day = (extra_start + timedelta(days=extra_offset)).replace(
+                    tzinfo=TIMEZONE
+                )
+                if target_day.date() > today.date():
+                    break
+
+                await asyncio.sleep(0.5)
+
+                try:
+                    day_data = await api.async_get_history_hourly(
+                        meter_point_id, target_day
+                    )
+                except Exception as err:
+                    _LOGGER.warning("Failed to fetch extra day %s: %s", target_day.date(), err)
+                    continue
+
+                day_start = target_day.replace(hour=0, minute=0, second=0, microsecond=0)
+
+                for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
+                    if hourly_value is not None and hourly_value >= 0:
+                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        import_points.append({"dt": hour_dt, "value": hourly_value})
+
+                if has_zones:
+                    for hour_idx, hourly_value in enumerate(day_data.get("import_1", [])):
+                        if hourly_value is not None and hourly_value >= 0:
+                            hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                            import_1_points.append({"dt": hour_dt, "value": hourly_value})
+
+                    for hour_idx, hourly_value in enumerate(day_data.get("import_2", [])):
+                        if hourly_value is not None and hourly_value >= 0:
+                            hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                            import_2_points.append({"dt": hour_dt, "value": hourly_value})
+
+                for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
+                    if hourly_value is not None and hourly_value >= 0:
+                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        export_points.append({"dt": hour_dt, "value": hourly_value})
+
         _LOGGER.info(
             "Collected data for meter %s: %d import, %d export%s",
             serial,
