@@ -62,20 +62,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         create_session_fn=lambda: aiohttp.ClientSession(),
     )
 
-    # Login to API
+    # Login to API (with timeout to prevent blocking HA startup)
     try:
-        await api.async_login()
+        await asyncio.wait_for(api.async_login(), timeout=30)
+    except asyncio.TimeoutError:
+        _LOGGER.warning("Login timed out after 30s — Energa API may be down")
+        await session.close()
+        raise ConfigEntryNotReady("Login timeout — API nie odpowiada") from None
     except EnergaAuthError as err:
+        await session.close()
         raise ConfigEntryAuthFailed(err) from err
     except EnergaTokenExpiredError:
         _LOGGER.warning("Token expired during setup, retrying login")
         try:
-            await api.async_login()
+            await asyncio.wait_for(api.async_login(), timeout=30)
+        except asyncio.TimeoutError:
+            await session.close()
+            raise ConfigEntryNotReady("Login retry timeout") from None
         except EnergaAuthError as err:
+            await session.close()
             raise ConfigEntryAuthFailed(err) from err
         except EnergaConnectionError as err:
+            await session.close()
             raise ConfigEntryNotReady(err) from err
     except EnergaConnectionError as err:
+        await session.close()
         raise ConfigEntryNotReady(err) from err
 
     # Store API instance
