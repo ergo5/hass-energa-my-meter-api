@@ -50,7 +50,7 @@ class EnergaDataUpdater:
             return [], []
 
         # Get price for cost calculation
-        price = get_price_for_key(dict(self.entry.options), data_key)
+        price = get_price_for_key(dict(self.entry.options), data_key, meter_id=meter_id)
 
         # Forward calculation - from last known sum or 0
         pre_fetched = self._pre_fetched_stats.get(entity_id)

@@ -353,7 +353,7 @@ async def _import_meter_history(
                 return 0
 
             # Get price from config options
-            price = get_price_for_key(dict(entry.options), entity_suffix)
+            price = get_price_for_key(dict(entry.options), entity_suffix, meter_id=str(serial))
 
             # Forward calculation from zero - sort oldest first
             points.sort(key=lambda x: x["dt"])

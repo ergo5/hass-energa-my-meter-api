@@ -634,7 +634,7 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
     def _get_price(self) -> float:
         """Get price for this sensor's zone/type."""
-        return get_price_for_key(dict(self._entry.options), self._data_key)
+        return get_price_for_key(dict(self._entry.options), self._data_key, meter_id=self._meter_id)
 
     @override
     @callback
