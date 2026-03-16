@@ -176,7 +176,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                     data=entry_data,
                 )
                 await self.hass.config_entries.async_reload(self._config_entry.entry_id)
-                return self.async_create_entry(title="", data={})
+                return self.async_create_entry(title="", data=dict(self._config_entry.options))
             except EnergaAuthError:
                 errors["base"] = "invalid_auth"
             except (EnergaConnectionError, aiohttp.ClientError, TimeoutError):
@@ -218,7 +218,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             )
             # Reload integration to apply new prices
             await self.hass.config_entries.async_reload(self._config_entry.entry_id)
-            return self.async_create_entry(title="", data={})
+            return self.async_create_entry(title="", data=new_options)
 
         has_zones = self._has_multi_zone_meters()
 
@@ -323,7 +323,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                         self.hass, api, meter, start_date, days, self._config_entry
                     )
                 )
-            return self.async_create_entry(title="", data={})
+            return self.async_create_entry(title="", data=dict(self._config_entry.options))
 
         return self.async_show_form(
             step_id="history",
@@ -380,7 +380,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             else:
                 _LOGGER.warning("No Energa Panel Energia sensors found to clear")
 
-            return self.async_create_entry(title="", data={})
+            return self.async_create_entry(title="", data=dict(self._config_entry.options))
 
         return self.async_show_form(
             step_id="clear_stats",
