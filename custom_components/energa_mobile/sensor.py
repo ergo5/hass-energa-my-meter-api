@@ -278,8 +278,9 @@ class EnergaCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Fetch data from API using smart fetch pattern."""
         try:
-            # Fetch meter data
-            meters = await self.api.async_get_data()
+            # Fetch meter data (force_refresh=True to update total readings
+            # from lastMeasurements on every cycle — fixes #20, #22)
+            meters = await self.api.async_get_data(force_refresh=True)
 
             # Filter active meters
             active_meters = [
