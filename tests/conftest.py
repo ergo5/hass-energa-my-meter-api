@@ -53,9 +53,10 @@ sensor_mod.SensorStateClass = MagicMock()
 sensor_mod.SensorEntity = type("SensorEntity", (), {})
 
 # Now safe to import
-import pytest
 from unittest.mock import AsyncMock
+
 import aiohttp
+import pytest
 
 from custom_components.energa_mobile.api import EnergaAPI
 

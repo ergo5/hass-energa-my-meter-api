@@ -1,16 +1,14 @@
 """Tests for get_price_for_key — pricing logic."""
 
-import pytest
 
 from custom_components.energa_mobile.const import (
     CONF_IMPORT_PRICE,
     CONF_IMPORT_PRICE_1,
     CONF_IMPORT_PRICE_2,
-    CONF_EXPORT_PRICE,
+    DEFAULT_EXPORT_PRICE,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_IMPORT_PRICE_1,
     DEFAULT_IMPORT_PRICE_2,
-    DEFAULT_EXPORT_PRICE,
     get_price_for_key,
 )
 

@@ -1,7 +1,8 @@
 """Tests for API zone detection and meter parsing."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from custom_components.energa_mobile.api import EnergaConnectionError
 from tests.conftest import make_mock_response

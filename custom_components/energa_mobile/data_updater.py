@@ -12,7 +12,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DOMAIN,
     MAX_HOURLY_KWH,
     get_price_for_key,
 )

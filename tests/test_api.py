@@ -1,11 +1,11 @@
 """Tests for EnergaAPI — login, retry, token refresh."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock
+
 import aiohttp
+import pytest
 
 from custom_components.energa_mobile.api import (
-    EnergaAPI,
     EnergaAuthError,
     EnergaConnectionError,
     EnergaTokenExpiredError,
@@ -46,7 +46,6 @@ class TestAsyncLogin:
     async def test_login_http_error(self, api, mock_session):
         """Login raises EnergaConnectionError on HTTP error."""
         session_resp = make_mock_response(200, {})
-        login_resp = make_mock_response(500, {})
         # Override: don't raise on resp.json, raise on status check to match code logic
         inner_resp = AsyncMock()
         inner_resp.status = 500

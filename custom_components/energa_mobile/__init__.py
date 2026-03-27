@@ -9,20 +9,19 @@ Clean rebuild with simplified architecture:
 import asyncio
 import logging
 import secrets
-
-import aiohttp
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import aiohttp
 import voluptuous as vol
 from homeassistant.components import persistent_notification
-from homeassistant.const import EVENT_HOMEASSISTANT_CLOSE
 from homeassistant.components.recorder.models import (
     StatisticMeanType,
     StatisticMetaData,
 )
 from homeassistant.components.recorder.statistics import async_import_statistics
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EVENT_HOMEASSISTANT_CLOSE
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.util import dt as dt_util
