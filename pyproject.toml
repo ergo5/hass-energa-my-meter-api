@@ -1,0 +1,7 @@
+[project]
+name = "hass-energa-my-meter-api"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
