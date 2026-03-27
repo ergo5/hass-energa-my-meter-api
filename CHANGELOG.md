@@ -1,5 +1,56 @@
 # Changelog
 
+## v4.11.0 (2026-03-27) - Bug Fixes & Prosumer Balance
+
+### 🐛 Bug Fixes
+- **#25 — HTTP 403 loop:** After re-login on token expiry, retry request still used the old (expired) token because params were built before the retry loop. Fixed by moving params computation inside the loop.
+- **#25 — Database executor warning:** Changed `hass.async_add_executor_job(get_last_statistics, ...)` to `recorder.get_instance(hass).async_add_executor_job()` — HA requires DB operations to go through the recorder's own executor pool.
+- **#23 — "Unknown error" on login:** `AbortFlow` from `_abort_if_unique_id_configured()` was caught by the generic `except Exception` handler, showing "Unknown error" instead of "Already configured". Added explicit `AbortFlow` re-raise.
+- **Prosumer balance sensor:** Removed incompatible `device_class=ENERGY` (balance can be negative, incompatible with `state_class=measurement`).
+- **Duplicate attributes:** `EnergaProsumerBalanceSensor` had two `extra_state_attributes` definitions — the second (generic meter info) was overriding the first (prosumer balance breakdown).
+
+### ✨ New Features
+- **Prosumer Balance sensor:** `Bilans Prosumencki` — tracks net billing balance (export × coefficient − import) in kWh.
+- **Prosumer coefficient:** Configurable via Options Flow (default 0.8 = 80%).
+- **Per-meter pricing:** Support for meter-specific price overrides in Options Flow.
+
+## v4.10.2 (2026-03-25) - Stale Device Cleanup
+- Auto-remove stale devices after account change
+
+## v4.10.1 (2026-03-25) - Meter Readings Fix
+- Fix: auto-refresh meter total readings on every cycle (closes #20, #22)
+
+## v4.10.0 (2026-03-24) - Per-Meter Pricing UI
+- Per-meter pricing UI in config_flow with `_get_active_meters` helper
+
+## v4.9.0 (2026-03-24) - Per-Meter Pricing Wiring
+- Wire `meter_id` to `get_price_for_key` in all callers (3 files)
+
+## v4.8.0 (2026-03-24) - Per-Meter Pricing Foundation
+- Per-meter pricing support in `get_price_for_key` (backward compatible)
+
+## v4.7.2 (2026-03-21) - Login Timeout
+- Add 30s login timeout + session cleanup on error
+
+## v4.7.1 (2026-03-20) - Spike Guard
+- Prevent spike on partial import — extend to today for sum continuity
+- Add spike guard to history import
+
+## v4.7.0 (2026-03-20) - Options Flow Fixes
+- Add `async_unload_entry` and update listener (closes #17, #19)
+- API warning/error capture with persistent notifications
+
+## v4.6.0 (2026-03-19) - Options Preservation
+- Fix: Options flow now preserves prices (closes #18)
+
+## v4.5.1 (2026-03-14) - Name Unification
+- Rename integration to "Energa My Meter API (Mój Licznik API)"
+- Update README for HACS Default, clean up .gitignore
+
+## v4.5.0 (2026-03-08) - Session Resilience
+- Session resilience — auto-recovery on closed session and token expiry
+- Unified tariff documentation (G12/G12w/G12r)
+
 ## v4.4.1 (2026-02-21) - G12w Bugfixes & Code Cleanup
 
 ### 🐛 Bug Fixes

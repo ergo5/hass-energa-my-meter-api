@@ -37,6 +37,7 @@ This integration communicates directly with Energa's **native REST API** (`api-m
 *   **🛡️ Forward-From-Zero Statistics:** Monotonically increasing sums with spike guard protection.
 *   **⚡ Hourly Granularity:** Precise hourly consumption/production tracking.
 *   **🔌 Multi-Zone Tariffs (G12/G12w):** Automatic detection of two-zone meters with separate peak/off-peak tracking.
+*   **⚖️ Prosumer Balance:** Tracks net billing balance with configurable coefficient (default 0.8).
 *   **🛠️ Auto-Repair (Self-Healing):** The "Download History" feature automatically fixes gaps and corrupted data.
 *   **🔍 OBIS Auto-Detect:** Automatically identifies usage (1.8.0) and production (2.8.0).
 
@@ -85,6 +86,7 @@ To enable cost calculation, you must configure energy prices:
 | **G12/G12w** zone 1 (peak) | Import Zone 1 | 1.2453 |
 | **G12/G12w** zone 2 (off-peak) | Import Zone 2 | 0.5955 |
 | All tariffs | Export | 0.95 |
+| Prosumer accounts | Prosumer coefficient | 0.8 (80%) |
 
 > [!TIP]
 > The options form automatically adapts to your tariff — two-zone meters (G12/G12w) will see zone-specific fields, single-zone meters (G11) will see a single import price.
@@ -136,6 +138,11 @@ The integration creates multiple sensors organized by function:
 | `Data Aktywacji` | Mój Licznik app activation date* |
 
 *Only available for prosumer accounts
+
+### Prosumer Sensors (auto-created for prosumer accounts)
+| Sensor Name | Description |
+|-------------|-------------|
+| `Bilans Prosumencki` | Net billing balance (export × coeff − import) in kWh |
 
 ---
 
