@@ -51,7 +51,8 @@
                     "import_price": "Cena za kWh (zużycie) [PLN]",
                     "import_price_1": "Cena za kWh strefa 1 (droga) [PLN]",
                     "import_price_2": "Cena za kWh strefa 2 (tania) [PLN]",
-                    "export_price": "Stawka za kWh (produkcja) [PLN]"
+                    "export_price": "Stawka za kWh (produkcja) [PLN]",
+                    "prosumer_coefficient": "Współczynnik prosumencki (0-1)"
                 }
             },
             "history": {
