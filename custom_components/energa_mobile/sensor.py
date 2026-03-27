@@ -604,8 +604,9 @@ class EnergaProsumerBalanceSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"energa_{meter_id}_prosumer_balance"
         self._attr_has_entity_name = True
 
-        # Sensor class attributes
-        self._attr_device_class = SensorDeviceClass.ENERGY
+        # Sensor class attributes — no device_class because balance
+        # can be negative (not compatible with SensorDeviceClass.ENERGY
+        # which requires state_class 'total' or 'total_increasing')
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
