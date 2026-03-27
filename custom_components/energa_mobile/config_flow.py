@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime
 
 import aiohttp
+from homeassistant.data_entry_flow import AbortFlow
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -19,11 +20,13 @@ from .const import (
     CONF_IMPORT_PRICE_1,
     CONF_IMPORT_PRICE_2,
     CONF_PASSWORD,
+    CONF_PROSUMER_COEFFICIENT,
     CONF_USERNAME,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_IMPORT_PRICE_1,
     DEFAULT_IMPORT_PRICE_2,
+    DEFAULT_PROSUMER_COEFFICIENT,
     DOMAIN,
 )
 
@@ -71,6 +74,8 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_auth"
             except (EnergaConnectionError, aiohttp.ClientError, TimeoutError):
                 errors["base"] = "cannot_connect"
+            except AbortFlow:
+                raise  # Let HA handle "already_configured" etc.
             except Exception:
                 _LOGGER.exception("Unexpected error during setup")
                 errors["base"] = "unknown"
@@ -121,6 +126,8 @@ class EnergaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_auth"
             except (EnergaConnectionError, aiohttp.ClientError, TimeoutError):
                 errors["base"] = "cannot_connect"
+            except AbortFlow:
+                raise
             except Exception:
                 _LOGGER.exception("Unexpected error during reauth")
                 errors["base"] = "unknown"
@@ -181,6 +188,8 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "invalid_auth"
             except (EnergaConnectionError, aiohttp.ClientError, TimeoutError):
                 errors["base"] = "cannot_connect"
+            except AbortFlow:
+                raise
             except Exception:
                 _LOGGER.exception("Unexpected error during credential update")
                 errors["base"] = "unknown"
@@ -241,6 +250,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
 
         # Get current values from options
         current_export = self._config_entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
+        current_coeff = self._config_entry.options.get(CONF_PROSUMER_COEFFICIENT, DEFAULT_PROSUMER_COEFFICIENT)
 
         if has_zones:
             # G12w: show zone-specific prices
@@ -260,6 +270,9 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                         vol.Required(
                             CONF_EXPORT_PRICE, default=current_export
                         ): vol.Coerce(float),
+                        vol.Required(
+                            CONF_PROSUMER_COEFFICIENT, default=current_coeff
+                        ): vol.Coerce(float),
                     }
                 ),
             )
@@ -276,6 +289,9 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                         ): vol.Coerce(float),
                         vol.Required(
                             CONF_EXPORT_PRICE, default=current_export
+                        ): vol.Coerce(float),
+                        vol.Required(
+                            CONF_PROSUMER_COEFFICIENT, default=current_coeff
                         ): vol.Coerce(float),
                     }
                 ),
