@@ -35,6 +35,8 @@ from homeassistant.loader import async_get_integration
 
 from .api import EnergaAuthError, EnergaConnectionError, EnergaTokenExpiredError
 from .const import (
+    CONF_PROSUMER_COEFFICIENT,
+    DEFAULT_PROSUMER_COEFFICIENT,
     DOMAIN,
     get_price_for_key,
 )
@@ -221,6 +223,19 @@ async def async_setup_entry(
                     name="Panel Energia Produkcja",
                     device_info=device_info,
                     entry=entry,
+                )
+            )
+
+        # === PROSUMER BALANCE SENSOR ===
+        # (only for prosumers — meters with export capability)
+        if meter.get("obis_minus"):
+            sensors.append(
+                EnergaProsumerBalanceSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    device_info=device_info,
+                    entry=entry,
+                    has_zones=has_zones,
                 )
             )
 
@@ -558,36 +573,156 @@ class EnergaLiveSensor(CoordinatorEntity, SensorEntity):
         )
         return None
 
+
+class EnergaProsumerBalanceSensor(CoordinatorEntity, SensorEntity):
+    """Prosumer balance sensor: export × coefficient − import.
+
+    Uses imported statistics sums (cumulative since history import date)
+    rather than lifetime meter totals. This ensures the balance counts
+    from the activation/history-import date, not from meter installation.
+
+    Positive = consuming own surplus. Negative = paying for grid power.
+    """
+
+    def __init__(
+        self,
+        coordinator,
+        meter_id: str,
+        device_info: DeviceInfo,
+        entry: ConfigEntry,
+        has_zones: bool = False,
+    ) -> None:
+        """Initialize prosumer balance sensor."""
+        super().__init__(coordinator)
+
+        self._meter_id = meter_id
+        self._entry = entry
+        self._has_zones = has_zones
+
+        # Entity attributes
+        self._attr_name = "Bilans Prosumencki"
+        self._attr_unique_id = f"energa_{meter_id}_prosumer_balance"
+        self._attr_has_entity_name = True
+
+        # Sensor class attributes
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+        # Device info
+        self._attr_device_info = device_info
+
+        # Icon
+        self._attr_icon = "mdi:scale-balance"
+
+    def _get_stats_sums(self) -> tuple[float, float] | None:
+        """Get import and export sums from pre-fetched statistics.
+
+        Returns (import_sum, export_sum) or None if stats not available.
+        """
+        from homeassistant.helpers import entity_registry as er
+
+        registry = er.async_get(self.hass)
+        pre_fetched = self.coordinator.get_pre_fetched_stats()
+
+        if not pre_fetched:
+            return None
+
+        # Resolve entity_ids from unique_ids
+        def _find_entity_id(suffix: str) -> str | None:
+            unique_id = f"energa_{self._meter_id}_{suffix}_stats"
+            for entity in registry.entities.values():
+                if entity.unique_id == unique_id and entity.platform == DOMAIN:
+                    return entity.entity_id
+            return None
+
+        # Sum import stats
+        import_sum = 0.0
+        if self._has_zones:
+            for suffix in ["import_1", "import_2"]:
+                eid = _find_entity_id(suffix)
+                if eid and eid in pre_fetched:
+                    import_sum += pre_fetched[eid].get("sum", 0) or 0
+        else:
+            eid = _find_entity_id("import")
+            if eid and eid in pre_fetched:
+                import_sum = pre_fetched[eid].get("sum", 0) or 0
+
+        # Get export sum
+        export_sum = 0.0
+        eid = _find_entity_id("export")
+        if eid and eid in pre_fetched:
+            export_sum = pre_fetched[eid].get("sum", 0) or 0
+
+        if import_sum == 0 and export_sum == 0:
+            return None  # No stats available yet
+
+        return (import_sum, export_sum)
+
+    @property
+    def native_value(self):
+        """Return prosumer balance: export × coefficient − import."""
+        sums = self._get_stats_sums()
+        if sums is None:
+            # Fallback to meter totals if no stats imported yet
+            totals = self.coordinator._meter_totals.get(str(self._meter_id))
+            if not totals:
+                return None
+            total_import = totals.get("import", 0)
+            total_export = totals.get("export", 0)
+        else:
+            total_import, total_export = sums
+
+        coefficient = float(
+            self._entry.options.get(
+                CONF_PROSUMER_COEFFICIENT, DEFAULT_PROSUMER_COEFFICIENT
+            )
+        )
+
+        balance = (total_export * coefficient) - total_import
+        return round(balance, 2)
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra attributes with breakdown."""
+        sums = self._get_stats_sums()
+        source = "statistics"
+        if sums is None:
+            totals = self.coordinator._meter_totals.get(str(self._meter_id))
+            if not totals:
+                return {}
+            total_import = totals.get("import", 0)
+            total_export = totals.get("export", 0)
+            source = "meter_totals"
+        else:
+            total_import, total_export = sums
+
+        coefficient = float(
+            self._entry.options.get(
+                CONF_PROSUMER_COEFFICIENT, DEFAULT_PROSUMER_COEFFICIENT
+            )
+        )
+
+        return {
+            "total_import_kwh": round(total_import, 2),
+            "total_export_kwh": round(total_export, 2),
+            "coefficient": coefficient,
+            "effective_export_kwh": round(total_export * coefficient, 2),
+            "data_source": source,
+        }
+
+
     @property
     def available(self) -> bool:
         """Sensor is available when we have data."""
         return self.coordinator.data is not None and self.native_value is not None
-
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        if not self.coordinator.data:
-            return {}
-
-        for meter in self.coordinator.data:
-            if str(meter.get("meter_point_id")) == str(self._meter_id):
-                return {
-                    "adres": meter.get("address"),
-                    "taryfa": meter.get("tariff"),
-                    "ppe": meter.get("ppe"),
-                    "numer_licznika": meter.get("meter_serial"),
-                    "data_umowy": str(meter.get("contract_date"))
-                    if meter.get("contract_date")
-                    else None,
-                }
-        return {}
 
     @override
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         _LOGGER.debug(
-            "LiveSensor %s: Coordinator update, value=%s",
+            "ProsumerBalance %s: Coordinator update, value=%s",
             self._attr_name,
             self.native_value,
         )
