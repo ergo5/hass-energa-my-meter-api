@@ -384,6 +384,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
         """Get start_date based on last imported statistic."""
         from datetime import datetime as dt_datetime
 
+        from homeassistant.components.recorder import get_instance
         from homeassistant.components.recorder.statistics import get_last_statistics
         from homeassistant.helpers import entity_registry as er
         from homeassistant.util import dt as dt_util
@@ -419,7 +420,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
 
         # Query last statistic
         try:
-            last_stats = await self.hass.async_add_executor_job(
+            last_stats = await get_instance(self.hass).async_add_executor_job(
                 get_last_statistics, self.hass, 1, entity_id, True, {"sum"}
             )
 
@@ -464,6 +465,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
 
     async def _fetch_last_stats_for_meter(self, meter_id: str, has_zones: bool = False):
         """Pre-fetch last statistics for meter entities (async-safe)."""
+        from homeassistant.components.recorder import get_instance
         from homeassistant.components.recorder.statistics import get_last_statistics
         from homeassistant.helpers import entity_registry as er
 
@@ -483,7 +485,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
                     entity_id = entity.entity_id
 
                     try:
-                        last_stats = await self.hass.async_add_executor_job(
+                        last_stats = await get_instance(self.hass).async_add_executor_job(
                             get_last_statistics,
                             self.hass,
                             1,
