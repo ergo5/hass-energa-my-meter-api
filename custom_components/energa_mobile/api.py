@@ -462,6 +462,9 @@ class EnergaAPI:
                 await self.async_login()
 
             url = f"{BASE_URL}{path}"
+
+            # Build params INSIDE the loop so that after re-login
+            # the fresh token is used (fixes stale token on retry)
             final_params = params.copy() if params else {}
             if self._token and "token" not in final_params:
                 final_params["token"] = self._token
