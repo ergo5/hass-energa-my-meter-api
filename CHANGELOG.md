@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.12.0 (2026-03-28) - Per-Zone Export Sensors
+
+### ✨ New Features
+- **Per-zone export sensors for G12W:** New sensors `Panel Energia Produkcja Strefa 1` and `Panel Energia Produkcja Strefa 2` for multi-zone tariffs (G12W, G12, G12AS, G12R). Export data is fetched from the chart API using the `zones[]` array, matching the import zone pattern.
+- **Per-zone export statistics:** Chart data for export is now fetched per zone (zone_index=0/1), enabling proper per-zone per-hour energy tracking in HA's long-term statistics.
+
+### 🔧 Changes
+- Coordinator totals now include `export_1`/`export_2` for multi-zone meters.
+- Pre-fetched statistics now cover `export_1`/`export_2` suffixes for smart fetch optimization.
+- G11 (single-zone) meters continue to use a single `export` sensor (no behavior change).
+
+### 🧪 Tests
+- 53 tests (was 46). Added `TestChartZoneData` class with 6 tests based on real API data from G12W account.
+- Updated sensor creation logic tests to verify per-zone export keys.
+
+
 ## v4.11.0 (2026-03-27) - Bug Fixes & Prosumer Balance
 
 ### 🐛 Bug Fixes

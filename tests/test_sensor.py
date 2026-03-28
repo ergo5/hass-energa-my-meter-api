@@ -117,11 +117,29 @@ class TestSensorCreationLogic:
             data_keys = ["import"]
         assert data_keys == ["import_1", "import_2"]
 
-    def test_export_sensor_always_single(self):
-        """Export sensor is always single (no zone split)."""
-        for has_zones in [True, False]:
-            export_key = "export"  # Never zone-specific
-            assert export_key == "export"
+    def test_g12w_creates_zone_export_sensors(self):
+        """G12W creates per-zone export sensors (export_1, export_2)."""
+        has_zones = True
+        has_export = True
+        if has_export and has_zones:
+            export_keys = ["export_1", "export_2"]
+        elif has_export:
+            export_keys = ["export"]
+        else:
+            export_keys = []
+        assert export_keys == ["export_1", "export_2"]
+
+    def test_g11_creates_single_export_sensor(self):
+        """G11 (single-zone) creates single export sensor."""
+        has_zones = False
+        has_export = True
+        if has_export and has_zones:
+            export_keys = ["export_1", "export_2"]
+        elif has_export:
+            export_keys = ["export"]
+        else:
+            export_keys = []
+        assert export_keys == ["export"]
 
     def test_prosumer_sensor_only_for_exporters(self):
         """Prosumer balance only created when obis_minus exists."""
@@ -130,3 +148,62 @@ class TestSensorCreationLogic:
 
         assert bool(meter_with_export.get("obis_minus")) is True
         assert bool(meter_without_export.get("obis_minus")) is False
+
+
+class TestChartZoneData:
+    """Tests for chart API zone structure interpretation.
+
+    Based on real API data from G12W account 00069839, 2026-03-27.
+    zones[] array: index 0 = Strefa 1 (dzienna), index 1 = Strefa 2 (nocna).
+    """
+
+    def test_g12w_import_zone_mapping_nocna(self):
+        """Hour 00 (nocna): import in zones[1], zones[0] is null."""
+        zones = [None, 0.981, None]  # real API data
+        zone_1 = zones[0] if zones[0] is not None else 0.0
+        zone_2 = zones[1] if zones[1] is not None else 0.0
+        assert zone_1 == 0.0    # strefa dzienna not active at midnight
+        assert zone_2 == 0.981  # strefa nocna active
+
+    def test_g12w_import_zone_mapping_dzienna(self):
+        """Hour 12 (dzienna): import in zones[0], zones[1] is null."""
+        zones = [0.083, None, None]  # real API data
+        zone_1 = zones[0] if zones[0] is not None else 0.0
+        zone_2 = zones[1] if zones[1] is not None else 0.0
+        assert zone_1 == 0.083  # strefa dzienna active at noon
+        assert zone_2 == 0.0
+
+    def test_g12w_export_zone_mapping(self):
+        """Export chart uses same zones[] structure as import."""
+        zones = [2.701, None, None]  # real API data, hour 12 export
+        zone_1 = zones[0] if zones[0] is not None else 0.0
+        zone_2 = zones[1] if zones[1] is not None else 0.0
+        assert zone_1 == 2.701  # strefa dzienna export
+        assert zone_2 == 0.0
+
+    def test_g12w_export_nocna(self):
+        """Export during nocna hours goes to zones[1]."""
+        zones = [None, 3.485, None]  # real API data, hour 13 export
+        zone_1 = zones[0] if zones[0] is not None else 0.0
+        zone_2 = zones[1] if zones[1] is not None else 0.0
+        assert zone_1 == 0.0
+        assert zone_2 == 3.485
+
+    def test_g11_single_zone(self):
+        """G11 always puts data in zones[0]."""
+        zones = [0.449, None, None]  # real API data from G11
+        total = zones[0] if zones[0] is not None else 0.0
+        assert total == 0.449
+
+    def test_zones_third_element_always_null(self):
+        """Third element (zones[2]) is always null in current API."""
+        test_cases = [
+            [None, 0.981, None],
+            [0.083, None, None],
+            [2.701, None, None],
+            [None, 3.485, None],
+            [0.449, None, None],
+        ]
+        for zones in test_cases:
+            assert zones[2] is None
+

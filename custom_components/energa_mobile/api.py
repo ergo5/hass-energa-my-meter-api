@@ -194,6 +194,14 @@ class EnergaAPI:
             result["export"] = await self._fetch_chart(
                 meter["meter_point_id"], meter["obis_minus"], ts
             )
+            # Per-zone export for G12w
+            if meter.get("zone_count", 1) > 1:
+                result["export_1"] = await self._fetch_chart(
+                    meter["meter_point_id"], meter["obis_minus"], ts, zone_index=0
+                )
+                result["export_2"] = await self._fetch_chart(
+                    meter["meter_point_id"], meter["obis_minus"], ts, zone_index=1
+                )
 
         _LOGGER.debug(
             "History %s (ts=%s): Import=%d pts, Export=%d pts",
@@ -253,7 +261,7 @@ class EnergaAPI:
         # Collect hourly data points
         keys = ["import", "export"]
         if has_zones:
-            keys.extend(["import_1", "import_2"])
+            keys.extend(["import_1", "import_2", "export_1", "export_2"])
         all_points = {k: [] for k in keys}
 
         for day_offset in range(days_to_fetch):
@@ -296,7 +304,12 @@ class EnergaAPI:
             len(all_points["import"]),
             len(all_points["export"]),
             start_date.date(),
-            f", zone1={len(all_points.get('import_1', []))}, zone2={len(all_points.get('import_2', []))}"
+            (
+                f", imp_z1={len(all_points.get('import_1', []))}"
+                f", imp_z2={len(all_points.get('import_2', []))}"
+                f", exp_z1={len(all_points.get('export_1', []))}"
+                f", exp_z2={len(all_points.get('export_2', []))}"
+            )
             if has_zones
             else "",
         )

@@ -213,8 +213,30 @@ async def async_setup_entry(
                 )
             )
 
-        # Export statistics (always single - no zone split for export)
-        if meter.get("obis_minus"):
+        # Export statistics
+        if meter.get("obis_minus") and has_zones:
+            # Per-zone export for G12w
+            sensors.append(
+                EnergaStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="export_1",
+                    name="Panel Energia Produkcja Strefa 1",
+                    device_info=device_info,
+                    entry=entry,
+                )
+            )
+            sensors.append(
+                EnergaStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="export_2",
+                    name="Panel Energia Produkcja Strefa 2",
+                    device_info=device_info,
+                    entry=entry,
+                )
+            )
+        elif meter.get("obis_minus"):
             sensors.append(
                 EnergaStatisticsSensor(
                     coordinator=coordinator,
@@ -337,6 +359,8 @@ class EnergaCoordinator(DataUpdateCoordinator):
                 if has_zones:
                     totals["import_1"] = float(meter.get("total_plus_1", 0) or 0)
                     totals["import_2"] = float(meter.get("total_plus_2", 0) or 0)
+                    totals["export_1"] = float(meter.get("total_minus_1", 0) or 0)
+                    totals["export_2"] = float(meter.get("total_minus_2", 0) or 0)
                 self._meter_totals[meter_id] = totals
 
                 # Pre-fetch last statistics for this meter (async-safe)
@@ -473,7 +497,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
 
         # Determine which suffixes to check
         if has_zones:
-            suffixes = ["import_1", "import_2", "export"]
+            suffixes = ["import_1", "import_2", "export_1", "export_2"]
         else:
             suffixes = ["import", "export"]
 
