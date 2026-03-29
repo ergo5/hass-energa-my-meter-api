@@ -784,8 +784,12 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"energa_{meter_id}_{data_key}_stats"
         self._attr_has_entity_name = True
 
-        # Sensor class attributes
+        # Sensor class attributes — state_class is required for Energy
+        # Dashboard to list this entity in its configuration dropdown.
+        # native_value intentionally returns None (data flows via
+        # async_import_statistics in _handle_coordinator_update).
         self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
         # Device info
@@ -799,21 +803,17 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Return None - statistics are imported manually, not from state.
+        """Return None - statistics are imported via async_import_statistics.
 
-        CRITICAL: Do NOT return total_plus/total_minus here!
-        If we return a value, HA Recorder will auto-create statistics
-        with state=value and sum=0, causing massive spikes on Energy Dashboard.
+        Returning a value here would cause HA Recorder to auto-create
+        statistics with state=value and sum=0, causing spikes
+        on the Energy Dashboard.
         """
         return None
 
     @property
     def available(self) -> bool:
-        """Statistics sensor is available when coordinator has data.
-
-        Note: native_value intentionally returns None (statistics are imported
-        via async_import_statistics, not from sensor state).
-        """
+        """Statistics sensor is available when coordinator has data."""
         return self.coordinator.data is not None
 
     def _get_price(self) -> float:

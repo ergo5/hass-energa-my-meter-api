@@ -100,6 +100,9 @@ The integration creates multiple sensors organized by function:
 ### Energy Dashboard Sensors (Panel Energia)
 **Use these for the Energy Dashboard:**
 
+> [!NOTE]
+> These sensors will always display **"unknown"** as their state in the UI. This is by design — they are **statistics-only** sensors that feed data exclusively into Home Assistant's **long-term statistics** via `async_import_statistics`. Their data appears in the **Energy Dashboard** and **Statistics graphs**, not in the entity state.
+
 | Sensor Name | Description | Purpose |
 |-------------|-------------|---------|
 | `Panel Energia Zużycie` | Cumulative consumption | Grid Consumption in Dashboard |
@@ -111,10 +114,12 @@ The integration creates multiple sensors organized by function:
 
 | Sensor Name | Description | Purpose |
 |-------------|-------------|---------|
-| `Panel Energia Strefa 1` | Peak zone consumption | Zone 1 tracking in Dashboard |
-| `Panel Energia Strefa 2` | Off-peak zone consumption | Zone 2 tracking in Dashboard |
+| `Panel Energia Strefa 1` | Peak zone consumption | Zone 1 import in Dashboard |
+| `Panel Energia Strefa 2` | Off-peak zone consumption | Zone 2 import in Dashboard |
 | `Panel Energia Strefa 1 Cost` | Peak zone cost (PLN) | Zone 1 cost tracking |
 | `Panel Energia Strefa 2 Cost` | Off-peak zone cost (PLN) | Zone 2 cost tracking |
+| `Panel Energia Produkcja Strefa 1` | Peak zone production | Zone 1 export in Dashboard |
+| `Panel Energia Produkcja Strefa 2` | Off-peak zone production | Zone 2 export in Dashboard |
 
 ### Daily Sensors
 | Sensor Name | Description |
