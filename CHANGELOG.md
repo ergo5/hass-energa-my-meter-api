@@ -126,7 +126,7 @@
 - Documentation: Native API emphasis in README, English API reference
 - Security: Removed sensitive keys and credentials from repository
 - Branding: Updated logo and icon to Energa | GRUPA ORLEN identity
-- Submitted to HACS default repository (PR #5416)
+- Submitted to HACS default repository (PR #5727 — merged 2026-03-12)
 
 ## v4.3.5 (2026-01-28) - Energy Dashboard Spike Fix
 

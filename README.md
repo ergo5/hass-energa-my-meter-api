@@ -7,7 +7,7 @@
 
 ![GitHub Release](https://img.shields.io/github/v/release/ergo5/hass-energa-my-meter-api)
 [![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
-![API](https://img.shields.io/badge/data_source-Native_API-blue?logo=fastapi)
+![API](https://img.shields.io/badge/data_source-Native_API-blue)
 
 🇵🇱 This integration is designed for customers of **Energa Operator** — a regional electricity distributor serving **northern Poland** (Pomorze, Warmia-Mazury, Kujawsko-Pomorskie).
 
@@ -60,8 +60,9 @@ A robust integration for **Energa Operator** in Home Assistant that communicates
 The integration **automatically calculates energy costs** and displays them in the Energy Dashboard in **PLN (złoty)**.
 
 **How it works:**
-- When you configure energy prices (see below), the integration creates cost sensors
-- Cost sensors: `*_zuzycie_cost` (consumption), `*_produkcja_cost` (production)
+- When you configure energy prices (see below), the integration automatically creates cost statistics
+- Import costs use the suffix **Koszt** (e.g., `Panel Energia Zużycie Koszt`)
+- Export compensation uses the suffix **Rekompensata** (e.g., `Panel Energia Produkcja Rekompensata`)
 - These sensors work seamlessly with the Energy Dashboard to show costs alongside energy usage
 
 > [!NOTE]
@@ -91,7 +92,7 @@ To enable cost calculation, you must configure energy prices:
 
 ---
 
-## 📡 Available Sensors
+## 📋 Available Sensors
 
 The integration creates multiple sensors organized by function:
 
@@ -107,8 +108,8 @@ The integration creates multiple sensors organized by function:
 |-------------|-------------|---------|
 | `Panel Energia Zużycie` | Cumulative consumption | Grid Consumption in Dashboard |
 | `Panel Energia Produkcja` | Cumulative production | Return to Grid in Dashboard |
-| `Panel Energia Zużycie Cost` | Consumption cost (PLN) | Auto-created for cost tracking |
-| `Panel Energia Produkcja Cost` | Production compensation (PLN) | Auto-created for cost tracking |
+| `Panel Energia Zużycie Koszt` | Consumption cost (PLN) | Auto-created for cost tracking |
+| `Panel Energia Produkcja Rekompensata` | Production compensation (PLN) | Auto-created for cost tracking |
 
 #### Multi-Zone (G12/G12w) — auto-created for two-zone tariffs
 
@@ -116,12 +117,12 @@ The integration creates multiple sensors organized by function:
 |-------------|-------------|---------|
 | `Panel Energia Strefa 1` | Peak zone consumption | Zone 1 import in Dashboard |
 | `Panel Energia Strefa 2` | Off-peak zone consumption | Zone 2 import in Dashboard |
-| `Panel Energia Strefa 1 Cost` | Peak zone cost (PLN) | Zone 1 cost tracking |
-| `Panel Energia Strefa 2 Cost` | Off-peak zone cost (PLN) | Zone 2 cost tracking |
+| `Panel Energia Strefa 1 Koszt` | Peak zone cost (PLN) | Zone 1 cost tracking |
+| `Panel Energia Strefa 2 Koszt` | Off-peak zone cost (PLN) | Zone 2 cost tracking |
 | `Panel Energia Produkcja Strefa 1` | Peak zone production | Zone 1 export in Dashboard |
 | `Panel Energia Produkcja Strefa 2` | Off-peak zone production | Zone 2 export in Dashboard |
-| `Panel Energia Produkcja Strefa 1 Cost` | Peak zone compensation (PLN) | Zone 1 export cost |
-| `Panel Energia Produkcja Strefa 2 Cost` | Off-peak zone compensation (PLN) | Zone 2 export cost |
+| `Panel Energia Produkcja Strefa 1 Rekompensata` | Peak zone compensation (PLN) | Zone 1 export cost |
+| `Panel Energia Produkcja Strefa 2 Rekompensata` | Off-peak zone compensation (PLN) | Zone 2 export cost |
 
 ### Daily Sensors
 | Sensor Name | Description |
@@ -167,8 +168,8 @@ To see correctly calculated statistics **and costs** in the Energy Dashboard, yo
 
 | Dashboard Section | Energy Sensor | Cost Sensor |
 |:---|:---|:---|
-| **Grid Consumption** (Pobór z sieci) | Panel Energia Zużycie | Panel Energia Zużycie Cost |
-| **Return to Grid** (Oddawanie do sieci) | Panel Energia Produkcja | Panel Energia Produkcja Cost |
+| **Grid Consumption** (Pobór z sieci) | Panel Energia Zużycie | Panel Energia Zużycie Koszt |
+| **Return to Grid** (Oddawanie do sieci) | Panel Energia Produkcja | Panel Energia Produkcja Rekompensata |
 
 ### Multi-Zone Tariff (G12 / G12w)
 
@@ -176,10 +177,10 @@ For two-zone tariffs, add **each zone separately**:
 
 | Dashboard Section | Energy Sensor | Cost Sensor |
 |:---|:---|:---|
-| **Grid Consumption** (zone 1 — peak) | Panel Energia Strefa 1 | Panel Energia Strefa 1 Cost |
-| **Grid Consumption** (zone 2 — off-peak) | Panel Energia Strefa 2 | Panel Energia Strefa 2 Cost |
-| **Return to Grid** (zone 1 — peak) | Panel Energia Produkcja Strefa 1 | Panel Energia Produkcja Strefa 1 Cost |
-| **Return to Grid** (zone 2 — off-peak) | Panel Energia Produkcja Strefa 2 | Panel Energia Produkcja Strefa 2 Cost |
+| **Grid Consumption** (zone 1 — peak) | Panel Energia Strefa 1 | Panel Energia Strefa 1 Koszt |
+| **Grid Consumption** (zone 2 — off-peak) | Panel Energia Strefa 2 | Panel Energia Strefa 2 Koszt |
+| **Return to Grid** (zone 1 — peak) | Panel Energia Produkcja Strefa 1 | Panel Energia Produkcja Strefa 1 Rekompensata |
+| **Return to Grid** (zone 2 — off-peak) | Panel Energia Produkcja Strefa 2 | Panel Energia Produkcja Strefa 2 Rekompensata |
 
 ### Step 2: Configure Cost Sensors
 
@@ -189,8 +190,8 @@ For two-zone tariffs, add **each zone separately**:
 
 When adding energy sources to the Energy Dashboard:
 1. Select the **Panel Energia** sensor for energy tracking
-2. In the **cost** field, select the corresponding `*_cost` sensor
-3. The cost sensor **must match** the energy sensor (e.g., `zuzycie` with `zuzycie_cost`)
+2. In the **cost** field, select the matching **Koszt** (import) or **Rekompensata** (export) sensor
+3. The cost sensor **must match** the energy sensor (e.g., `Zużycie` with `Zużycie Koszt`)
 
 > [!IMPORTANT]
 > **Do NOT use** `Zużycie Dziś`, `Produkcja Dziś`, or `Stan Licznika` sensors for the Energy Dashboard — only **Panel Energia** sensors produce correct statistics.

@@ -135,8 +135,17 @@ meterPoint=339038
 type=DAY
 meterObject=1-0:1.8.0*255
 mainChartDate=1766530800000    // day midnight timestamp (ms)
+zones[]=0                      // zone index (for multi-zone tariffs)
 token=<optional>
 ```
+
+### Multi-Zone Tariffs (G12/G12w)
+
+For two-zone tariffs, the `zones[]` parameter specifies which zone to retrieve:
+- `zones[]=0` — zone 1 (peak)
+- `zones[]=1` — zone 2 (off-peak)
+
+Without the `zones[]` parameter, the API returns aggregated data across all zones.
 
 ### Response
 
@@ -193,4 +202,4 @@ Content-Type: application/json
 
 ---
 
-*Last updated: 2026-02-09*
+*Last updated: 2026-03-29*
