@@ -157,6 +157,12 @@ The integration creates multiple sensors organized by function:
 
 To see correctly calculated statistics **and costs** in the Energy Dashboard, you MUST select the specific sensors labeled **"Panel Energia"**.
 
+### Step 1: Configure Grid Consumption
+
+<img src="docs/energy_dashboard_config.png" alt="Energy Dashboard Configuration" width="400"/>
+
+*Example configuration showing Panel Energia sensors with cost tracking*
+
 ### Single-Zone Tariff (G11)
 
 | Dashboard Section | Energy Sensor | Cost Sensor |
@@ -175,11 +181,22 @@ For two-zone tariffs, add **each zone separately**:
 | **Return to Grid** (zone 1 — peak) | Panel Energia Produkcja Strefa 1 | Panel Energia Produkcja Strefa 1 Cost |
 | **Return to Grid** (zone 2 — off-peak) | Panel Energia Produkcja Strefa 2 | Panel Energia Produkcja Strefa 2 Cost |
 
+### Step 2: Configure Cost Sensors
+
+<img src="docs/energy_cost_config.png" alt="Cost Sensor Configuration" width="400"/>
+
+*Configure cost tracking by selecting the matching cost sensor*
+
+When adding energy sources to the Energy Dashboard:
+1. Select the **Panel Energia** sensor for energy tracking
+2. In the **cost** field, select the corresponding `*_cost` sensor
+3. The cost sensor **must match** the energy sensor (e.g., `zuzycie` with `zuzycie_cost`)
+
 > [!IMPORTANT]
 > **Do NOT use** `Zużycie Dziś`, `Produkcja Dziś`, or `Stan Licznika` sensors for the Energy Dashboard — only **Panel Energia** sensors produce correct statistics.
 
 > [!NOTE]
-> **"Entity Unavailable"?** This is **normal** for Panel Energia sensors. They work in background for the Energy Dashboard and don't have a live "state" to display. They will still work correctly.
+> **"Entity Unavailable" (Encja niedostępna)?** This is **normal** for Panel Energia sensors. They work in background for the Energy Dashboard and don't have a live "state" to display. They will still work correctly.
 
 ---
 
