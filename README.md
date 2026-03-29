@@ -11,7 +11,7 @@
 
 🇵🇱 This integration is designed for customers of **Energa Operator** — a regional electricity distributor serving **northern Poland** (Pomorze, Warmia-Mazury, Kujawsko-Pomorskie).
 
-A robust integration for **Energa Operator** in Home Assistant that communicates directly with the **native REST API** (`api-mojlicznik.energa-operator.pl`) — **not web scraping**. It retrieves data from the "Mój Licznik" portal and integrates seamlessly with the **Energy Dashboard**. Features **self-healing history import**, **automatic cost calculation**, and reliable cumulative statistics.
+A robust integration for **Energa Operator** in Home Assistant that communicates directly with the **native REST API** — **not web scraping**. It retrieves data from the "Mój Licznik" portal and integrates seamlessly with the **Energy Dashboard**. Features **self-healing history import**, **automatic cost calculation**, and reliable cumulative statistics.
 
 > [!TIP]
 > For technical details about the API endpoints, see [ENERGA_API_REFERENCE.md](docs/ENERGA_API_REFERENCE.md).
