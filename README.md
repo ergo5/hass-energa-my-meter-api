@@ -227,11 +227,9 @@ Use this feature if you have missing data OR if you see incorrect spikes in your
 
 ## 🐛 Troubleshooting
 
-### "Token expired" warnings in logs
+### Persistent errors in logs?
 
-This is **normal behavior**. The Energa API invalidates session tokens frequently. The integration automatically re-authenticates when this happens — no action needed.
-
-If you see persistent **errors** (not warnings), try removing and re-adding the integration:
+If you see repeated **errors** (not warnings) related to Energa, try removing and re-adding the integration:
 1. Go to **Settings** → **Devices & Services** → **Energa My Meter**
 2. Click the **3 dots** → **Delete**
 3. Add the integration again with your credentials
@@ -244,8 +242,8 @@ If you see persistent **errors** (not warnings), try removing and re-adding the 
 ### Cost Not Showing in Energy Dashboard?
 
 1. **Verify prices are configured:** Settings → Energa My Meter → Configure → Set Energy Prices
-2. **Check cost sensors exist:** Look for `*_cost` sensors in entity list
-3. **Ensure correct mapping:** Cost sensor must match energy sensor (e.g., `zuzycie` with `zuzycie_cost`)
+2. **Check cost statistics exist:** Look for **Koszt** (import) or **Rekompensata** (export) statistics in Developer Tools → Statistics
+3. **Ensure correct mapping:** Cost sensor must match energy sensor (e.g., `Zużycie` with `Zużycie Koszt`)
 
 ### Data Not Appearing in Energy Dashboard?
 

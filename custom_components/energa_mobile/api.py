@@ -488,7 +488,7 @@ class EnergaAPI:
                 ) as resp:
                     if resp.status in (401, 403):
                         if attempt == 0:
-                            _LOGGER.warning(
+                            _LOGGER.debug(
                                 "Token expired (HTTP %d), re-logging in", resp.status
                             )
                             await self.async_login()

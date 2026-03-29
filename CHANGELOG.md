@@ -1,5 +1,20 @@
 # Changelog
 
+## v4.12.1 (2026-03-29) - Critical G12W Bug Fixes
+
+### 🐛 Bug Fixes
+- **Export price mapping (G12W):** `export_1`/`export_2` zones were incorrectly charged at **import price** (1.188 PLN/kWh) instead of export price (0.95 PLN/kWh). Fixed `get_price_for_key()` to explicitly map per-zone export keys.
+- **Prosumer balance (G12W):** For multi-zone tariffs, export sum was always **0** because the code searched for a single `export` entity instead of summing `export_1` + `export_2`. Prosumer balance now correctly aggregates per-zone exports.
+- **DST spring-forward crash:** During DST transition (e.g. March 29), local hours 02:00 and 03:00 both mapped to the same UTC hour after `as_utc()` conversion, causing duplicate `start_ts` entries. The recorder crashed with `StaleDataError`. Fixed by merging duplicate UTC timestamps in `build_statistics()`.
+- **Token expired log noise:** Downgraded "Token expired" messages from WARNING to DEBUG across `api.py`, `sensor.py`, and `__init__.py` to reduce log clutter from normal API session rotation.
+
+### 📝 Documentation
+- Fixed cost sensor names in README: `Cost` → `Koszt` (import) / `Rekompensata` (export) to match actual code
+- Fixed Troubleshooting section: removed stale `*_cost` entity_id references
+- Fixed API Reference: `zones[]` was documented as a request parameter, but the integration reads per-zone data from the response array client-side
+- Fixed API Reference response example: now shows multi-zone `zones` array
+- Fixed CHANGELOG: corrected HACS PR reference (#5416 → #5727)
+
 ## v4.12.0 (2026-03-28) - Per-Zone Export Sensors
 
 ### ✨ New Features

@@ -72,7 +72,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await session.close()
         raise ConfigEntryAuthFailed(err) from err
     except EnergaTokenExpiredError:
-        _LOGGER.warning("Token expired during setup, retrying login")
+        _LOGGER.debug("Token expired during setup, retrying login")
         try:
             await asyncio.wait_for(api.async_login(), timeout=30)
         except asyncio.TimeoutError:
@@ -385,6 +385,21 @@ async def _import_meter_history(
 
             # Forward calculation from zero - sort oldest first
             points.sort(key=lambda x: x["dt"])
+
+            # Merge duplicate UTC timestamps (DST spring-forward gap:
+            # local 02:00 doesn't exist, so hour_idx 2 and 3 both map
+            # to the same UTC hour after as_utc() conversion)
+            merged: list[dict] = []
+            for point in points:
+                if merged and merged[-1]["dt"] == point["dt"]:
+                    merged[-1]["value"] += point["value"]
+                    _LOGGER.debug(
+                        "DST dedup: merged %.3f kWh into %s (total %.3f)",
+                        point["value"], point["dt"], merged[-1]["value"],
+                    )
+                else:
+                    merged.append(dict(point))
+            points = merged
 
             running_sum = 0.0
             statistics = []

@@ -50,6 +50,8 @@ def get_price_for_key(
         "import_1": (CONF_IMPORT_PRICE_1, DEFAULT_IMPORT_PRICE_1),
         "import_2": (CONF_IMPORT_PRICE_2, DEFAULT_IMPORT_PRICE_2),
         "export": (CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE),
+        "export_1": (CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE),
+        "export_2": (CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE),
     }
 
     conf_key, default_val = key_map.get(

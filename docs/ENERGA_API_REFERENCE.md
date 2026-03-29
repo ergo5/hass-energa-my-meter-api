@@ -135,17 +135,18 @@ meterPoint=339038
 type=DAY
 meterObject=1-0:1.8.0*255
 mainChartDate=1766530800000    // day midnight timestamp (ms)
-zones[]=0                      // zone index (for multi-zone tariffs)
 token=<optional>
 ```
 
 ### Multi-Zone Tariffs (G12/G12w)
 
-For two-zone tariffs, the `zones[]` parameter specifies which zone to retrieve:
-- `zones[]=0` — zone 1 (peak)
-- `zones[]=1` — zone 2 (off-peak)
+For multi-zone tariffs, the API returns **per-zone values** in the `zones` array of each hourly data point:
+- `zones[0]` — zone 1 (peak)
+- `zones[1]` — zone 2 (off-peak)
 
-Without the `zones[]` parameter, the API returns aggregated data across all zones.
+Single-zone tariffs (G11) return a single-element array. The total consumption is the **sum** of all elements.
+
+> **Note:** The API also supports an optional `zones[]=0` request parameter to filter server-side, but the integration reads the full response and extracts zones client-side.
 
 ### Response
 
@@ -153,8 +154,8 @@ Without the `zones[]` parameter, the API returns aggregated data across all zone
 {
   "response": {
     "mainChart": [
-      { "zones": [0.11] },
-      { "zones": [0.101] },
+      { "zones": [0.05, 0.11] },
+      { "zones": [0.0, 0.101] },
       ...
     ]
   }

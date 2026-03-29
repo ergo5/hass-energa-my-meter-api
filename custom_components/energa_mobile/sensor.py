@@ -387,7 +387,7 @@ class EnergaCoordinator(DataUpdateCoordinator):
         except EnergaTokenExpiredError:
             if getattr(self, "_retrying", False):
                 raise UpdateFailed("Token expired again after re-login")
-            _LOGGER.warning("Token expired, attempting re-login")
+            _LOGGER.debug("Token expired, attempting re-login")
             try:
                 await self.api.async_login()
                 self._retrying = True
@@ -677,9 +677,15 @@ class EnergaProsumerBalanceSensor(CoordinatorEntity, SensorEntity):
 
         # Get export sum
         export_sum = 0.0
-        eid = _find_entity_id("export")
-        if eid and eid in pre_fetched:
-            export_sum = pre_fetched[eid].get("sum", 0) or 0
+        if self._has_zones:
+            for suffix in ["export_1", "export_2"]:
+                eid = _find_entity_id(suffix)
+                if eid and eid in pre_fetched:
+                    export_sum += pre_fetched[eid].get("sum", 0) or 0
+        else:
+            eid = _find_entity_id("export")
+            if eid and eid in pre_fetched:
+                export_sum = pre_fetched[eid].get("sum", 0) or 0
 
         if import_sum == 0 and export_sum == 0:
             return None  # No stats available yet

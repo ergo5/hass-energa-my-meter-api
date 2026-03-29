@@ -388,8 +388,7 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             entity_registry = er.async_get(self.hass)
 
             # Find all Energa Panel Energia sensors (energy statistics only)
-            # These have "panel_energia_zuzycie" or "panel_energia_produkcja" in entity_id
-            # and "_stats" marker in unique_id (identifies Panel Energia sensors)
+            # Matched by entity_id substrings: panel_energia_zuzycie, panel_energia_produkcja, panel_energia_strefa
             statistic_ids = [
                 entity.entity_id
                 for entity in entity_registry.entities.values()
