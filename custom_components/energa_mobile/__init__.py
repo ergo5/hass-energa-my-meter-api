@@ -253,48 +253,81 @@ async def _import_meter_history(
 
             try:
                 day_data = await api.async_get_history_hourly(
-                    meter_point_id, target_day
+                    meter_point_id, target_day, include_timestamps=True
                 )
             except Exception as err:
                 _LOGGER.warning("Failed to fetch day %s: %s", target_day.date(), err)
                 continue
 
-            day_start = target_day.replace(hour=0, minute=0, second=0, microsecond=0)
-
-            # Process import data (total)
-            for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
+            # Process import data (total) — use API timestamps (#26)
+            for item in day_data.get("import", []):
+                if isinstance(item, (list, tuple)):
+                    hourly_value, tm_ms = item
+                else:
+                    continue
                 if hourly_value is not None and hourly_value >= 0:
-                    hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                    hour_dt = dt_util.as_utc(
+                        datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                    )
                     import_points.append({"dt": hour_dt, "value": hourly_value})
 
-            # Process zone-specific import data
             if has_zones:
-                for hour_idx, hourly_value in enumerate(day_data.get("import_1", [])):
+                for item in day_data.get("import_1", []):
+                    if isinstance(item, (list, tuple)):
+                        hourly_value, tm_ms = item
+                    else:
+                        continue
                     if hourly_value is not None and hourly_value >= 0:
-                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        hour_dt = dt_util.as_utc(
+                            datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                        )
                         import_1_points.append({"dt": hour_dt, "value": hourly_value})
 
-                for hour_idx, hourly_value in enumerate(day_data.get("import_2", [])):
+                for item in day_data.get("import_2", []):
+                    if isinstance(item, (list, tuple)):
+                        hourly_value, tm_ms = item
+                    else:
+                        continue
                     if hourly_value is not None and hourly_value >= 0:
-                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        hour_dt = dt_util.as_utc(
+                            datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                        )
                         import_2_points.append({"dt": hour_dt, "value": hourly_value})
 
-            # Process export data
-            for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
+            # Process export data — use API timestamps (#26)
+            for item in day_data.get("export", []):
+                if isinstance(item, (list, tuple)):
+                    hourly_value, tm_ms = item
+                else:
+                    continue
                 if hourly_value is not None and hourly_value >= 0:
-                    hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                    hour_dt = dt_util.as_utc(
+                        datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                    )
                     export_points.append({"dt": hour_dt, "value": hourly_value})
 
             # Process zone-specific export data
             if has_zones:
-                for hour_idx, hourly_value in enumerate(day_data.get("export_1", [])):
+                for item in day_data.get("export_1", []):
+                    if isinstance(item, (list, tuple)):
+                        hourly_value, tm_ms = item
+                    else:
+                        continue
                     if hourly_value is not None and hourly_value >= 0:
-                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        hour_dt = dt_util.as_utc(
+                            datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                        )
                         export_1_points.append({"dt": hour_dt, "value": hourly_value})
 
-                for hour_idx, hourly_value in enumerate(day_data.get("export_2", [])):
+                for item in day_data.get("export_2", []):
+                    if isinstance(item, (list, tuple)):
+                        hourly_value, tm_ms = item
+                    else:
+                        continue
                     if hourly_value is not None and hourly_value >= 0:
-                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        hour_dt = dt_util.as_utc(
+                            datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                        )
                         export_2_points.append({"dt": hour_dt, "value": hourly_value})
 
         # Extend import to today to prevent sum discontinuity with live stats.
@@ -321,44 +354,78 @@ async def _import_meter_history(
 
                 try:
                     day_data = await api.async_get_history_hourly(
-                        meter_point_id, target_day
+                        meter_point_id, target_day, include_timestamps=True
                     )
                 except Exception as err:
                     _LOGGER.warning("Failed to fetch extra day %s: %s", target_day.date(), err)
                     continue
 
-                day_start = target_day.replace(hour=0, minute=0, second=0, microsecond=0)
-
-                for hour_idx, hourly_value in enumerate(day_data.get("import", [])):
+                for item in day_data.get("import", []):
+                    if isinstance(item, (list, tuple)):
+                        hourly_value, tm_ms = item
+                    else:
+                        continue
                     if hourly_value is not None and hourly_value >= 0:
-                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        hour_dt = dt_util.as_utc(
+                            datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                        )
                         import_points.append({"dt": hour_dt, "value": hourly_value})
 
                 if has_zones:
-                    for hour_idx, hourly_value in enumerate(day_data.get("import_1", [])):
+                    for item in day_data.get("import_1", []):
+                        if isinstance(item, (list, tuple)):
+                            hourly_value, tm_ms = item
+                        else:
+                            continue
                         if hourly_value is not None and hourly_value >= 0:
-                            hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                            hour_dt = dt_util.as_utc(
+                                datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                            )
                             import_1_points.append({"dt": hour_dt, "value": hourly_value})
 
-                    for hour_idx, hourly_value in enumerate(day_data.get("import_2", [])):
+                    for item in day_data.get("import_2", []):
+                        if isinstance(item, (list, tuple)):
+                            hourly_value, tm_ms = item
+                        else:
+                            continue
                         if hourly_value is not None and hourly_value >= 0:
-                            hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                            hour_dt = dt_util.as_utc(
+                                datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                            )
                             import_2_points.append({"dt": hour_dt, "value": hourly_value})
 
-                for hour_idx, hourly_value in enumerate(day_data.get("export", [])):
+                for item in day_data.get("export", []):
+                    if isinstance(item, (list, tuple)):
+                        hourly_value, tm_ms = item
+                    else:
+                        continue
                     if hourly_value is not None and hourly_value >= 0:
-                        hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                        hour_dt = dt_util.as_utc(
+                            datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                        )
                         export_points.append({"dt": hour_dt, "value": hourly_value})
 
                 if has_zones:
-                    for hour_idx, hourly_value in enumerate(day_data.get("export_1", [])):
+                    for item in day_data.get("export_1", []):
+                        if isinstance(item, (list, tuple)):
+                            hourly_value, tm_ms = item
+                        else:
+                            continue
                         if hourly_value is not None and hourly_value >= 0:
-                            hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                            hour_dt = dt_util.as_utc(
+                                datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                            )
                             export_1_points.append({"dt": hour_dt, "value": hourly_value})
 
-                    for hour_idx, hourly_value in enumerate(day_data.get("export_2", [])):
+                    for item in day_data.get("export_2", []):
+                        if isinstance(item, (list, tuple)):
+                            hourly_value, tm_ms = item
+                        else:
+                            continue
                         if hourly_value is not None and hourly_value >= 0:
-                            hour_dt = dt_util.as_utc(day_start + timedelta(hours=hour_idx))
+                            hour_dt = dt_util.as_utc(
+                                datetime.fromtimestamp(tm_ms / 1000, tz=TIMEZONE)
+                            )
                             export_2_points.append({"dt": hour_dt, "value": hourly_value})
 
         _LOGGER.info(

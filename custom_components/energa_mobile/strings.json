@@ -52,7 +52,9 @@
                     "import_price_1": "Zone 1 price per kWh (peak) [PLN]",
                     "import_price_2": "Zone 2 price per kWh (off-peak) [PLN]",
                     "export_price": "Rate per kWh (production) [PLN]",
-                    "prosumer_coefficient": "Prosumer coefficient (0-1)"
+                    "prosumer_coefficient": "Prosumer coefficient (0-1)",
+                    "balance_baseline_import": "Prosumer baseline import [kWh]",
+                    "balance_baseline_export": "Prosumer baseline export [kWh]"
                 }
             },
             "history": {

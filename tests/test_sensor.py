@@ -1,22 +1,27 @@
 """Tests for sensor logic — prosumer balance calculation.
 
 The prosumer balance formula is:
-    balance = (total_export × coefficient) − total_import
+    balance = ((meter_export − baseline_export) × coefficient)
+            − (meter_import − baseline_import)
 
-Tested independently of HA entity framework by extracting the
-pure calculation logic.
+Baselines represent meter readings at the start of the tracking period.
+With baselines = 0, this is equivalent to lifetime calculation.
 """
 
 
 
 
 def calculate_prosumer_balance(
-    total_import: float,
-    total_export: float,
+    meter_import: float,
+    meter_export: float,
     coefficient: float = 0.8,
+    baseline_import: float = 0.0,
+    baseline_export: float = 0.0,
 ) -> float:
     """Extract of EnergaProsumerBalanceSensor.native_value calculation."""
-    balance = (total_export * coefficient) - total_import
+    net_export = meter_export - baseline_export
+    net_import = meter_import - baseline_import
+    balance = (net_export * coefficient) - net_import
     return round(balance, 2)
 
 
@@ -26,7 +31,7 @@ class TestProsumerBalance:
     def test_positive_balance(self):
         """More export than import → positive balance (surplus)."""
         result = calculate_prosumer_balance(
-            total_import=100.0, total_export=200.0, coefficient=0.8
+            meter_import=100.0, meter_export=200.0, coefficient=0.8
         )
         # 200 * 0.8 - 100 = 60
         assert result == 60.0
@@ -34,7 +39,7 @@ class TestProsumerBalance:
     def test_negative_balance(self):
         """More import than export → negative balance (debt)."""
         result = calculate_prosumer_balance(
-            total_import=500.0, total_export=200.0, coefficient=0.8
+            meter_import=500.0, meter_export=200.0, coefficient=0.8
         )
         # 200 * 0.8 - 500 = -340
         assert result == -340.0
@@ -42,7 +47,7 @@ class TestProsumerBalance:
     def test_zero_balance(self):
         """Exact equilibrium."""
         result = calculate_prosumer_balance(
-            total_import=80.0, total_export=100.0, coefficient=0.8
+            meter_import=80.0, meter_export=100.0, coefficient=0.8
         )
         # 100 * 0.8 - 80 = 0
         assert result == 0.0
@@ -50,7 +55,7 @@ class TestProsumerBalance:
     def test_custom_coefficient(self):
         """Non-default coefficient (e.g. 0.7 for net-billing)."""
         result = calculate_prosumer_balance(
-            total_import=100.0, total_export=200.0, coefficient=0.7
+            meter_import=100.0, meter_export=200.0, coefficient=0.7
         )
         # 200 * 0.7 - 100 = 40
         assert result == 40.0
@@ -58,21 +63,21 @@ class TestProsumerBalance:
     def test_coefficient_1_0(self):
         """Coefficient 1.0 = no loss on exchange."""
         result = calculate_prosumer_balance(
-            total_import=100.0, total_export=100.0, coefficient=1.0
+            meter_import=100.0, meter_export=100.0, coefficient=1.0
         )
         assert result == 0.0
 
     def test_zero_export(self):
         """Consumer only (no export) → negative balance."""
         result = calculate_prosumer_balance(
-            total_import=500.0, total_export=0.0, coefficient=0.8
+            meter_import=500.0, meter_export=0.0, coefficient=0.8
         )
         assert result == -500.0
 
     def test_zero_import(self):
         """Full self-consumption → positive balance."""
         result = calculate_prosumer_balance(
-            total_import=0.0, total_export=100.0, coefficient=0.8
+            meter_import=0.0, meter_export=100.0, coefficient=0.8
         )
         assert result == 80.0
 
@@ -80,8 +85,8 @@ class TestProsumerBalance:
         """Real-world test case from Lab verification."""
         # From G12W test: export ~29527, import ~45449
         result = calculate_prosumer_balance(
-            total_import=45449.543,
-            total_export=29526.870,
+            meter_import=45449.543,
+            meter_export=29526.870,
             coefficient=0.8,
         )
         # 29526.870 * 0.8 - 45449.543 = 23621.496 - 45449.543 = -21828.047
@@ -90,10 +95,48 @@ class TestProsumerBalance:
     def test_float_precision(self):
         """Floating point edge case."""
         result = calculate_prosumer_balance(
-            total_import=0.1, total_export=0.1, coefficient=0.8
+            meter_import=0.1, meter_export=0.1, coefficient=0.8
         )
         # 0.1 * 0.8 - 0.1 = 0.08 - 0.1 = -0.02
         assert result == -0.02
+
+    # === Baseline tests (issue #27) ===
+
+    def test_baseline_subtraction(self):
+        """Baselines correctly subtract from meter totals."""
+        result = calculate_prosumer_balance(
+            meter_import=45507.0, meter_export=29580.0,
+            baseline_import=45177.0, baseline_export=29389.0,
+            coefficient=0.8,
+        )
+        # net_export = 29580 - 29389 = 191
+        # net_import = 45507 - 45177 = 330
+        # balance = 191 * 0.8 - 330 = 152.8 - 330 = -177.2
+        assert result == -177.2
+
+    def test_baseline_gednet_scenario(self):
+        """Issue #27: gednet's real-world case with 0.7 coefficient."""
+        # User exported 840 kWh, imported 10 kWh since period start
+        result = calculate_prosumer_balance(
+            meter_import=10010.0, meter_export=10840.0,
+            baseline_import=10000.0, baseline_export=10000.0,
+            coefficient=0.7,
+        )
+        # net_export = 840, net_import = 10
+        # balance = 840 * 0.7 - 10 = 588 - 10 = 578
+        assert result == 578.0
+
+    def test_zero_baselines_equals_lifetime(self):
+        """With baselines = 0, formula is equivalent to lifetime totals."""
+        lifetime = calculate_prosumer_balance(
+            meter_import=1000.0, meter_export=2000.0, coefficient=0.8
+        )
+        with_zero_baselines = calculate_prosumer_balance(
+            meter_import=1000.0, meter_export=2000.0,
+            baseline_import=0.0, baseline_export=0.0,
+            coefficient=0.8,
+        )
+        assert lifetime == with_zero_baselines
 
 
 class TestSensorCreationLogic:

@@ -14,6 +14,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import EnergaAPI, EnergaAuthError, EnergaConnectionError
 from .const import (
+    CONF_BALANCE_BASELINE_EXPORT,
+    CONF_BALANCE_BASELINE_IMPORT,
     CONF_DEVICE_TOKEN,
     CONF_EXPORT_PRICE,
     CONF_IMPORT_PRICE,
@@ -22,6 +24,7 @@ from .const import (
     CONF_PASSWORD,
     CONF_PROSUMER_COEFFICIENT,
     CONF_USERNAME,
+    DEFAULT_BALANCE_BASELINE,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_IMPORT_PRICE_1,
@@ -251,6 +254,8 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         # Get current values from options
         current_export = self._config_entry.options.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)
         current_coeff = self._config_entry.options.get(CONF_PROSUMER_COEFFICIENT, DEFAULT_PROSUMER_COEFFICIENT)
+        current_bl_import = self._config_entry.options.get(CONF_BALANCE_BASELINE_IMPORT, DEFAULT_BALANCE_BASELINE)
+        current_bl_export = self._config_entry.options.get(CONF_BALANCE_BASELINE_EXPORT, DEFAULT_BALANCE_BASELINE)
 
         if has_zones:
             # G12w: show zone-specific prices
@@ -273,6 +278,12 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                         vol.Required(
                             CONF_PROSUMER_COEFFICIENT, default=current_coeff
                         ): vol.Coerce(float),
+                        vol.Optional(
+                            CONF_BALANCE_BASELINE_IMPORT, default=current_bl_import
+                        ): vol.Coerce(float),
+                        vol.Optional(
+                            CONF_BALANCE_BASELINE_EXPORT, default=current_bl_export
+                        ): vol.Coerce(float),
                     }
                 ),
             )
@@ -292,6 +303,12 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                         ): vol.Coerce(float),
                         vol.Required(
                             CONF_PROSUMER_COEFFICIENT, default=current_coeff
+                        ): vol.Coerce(float),
+                        vol.Optional(
+                            CONF_BALANCE_BASELINE_IMPORT, default=current_bl_import
+                        ): vol.Coerce(float),
+                        vol.Optional(
+                            CONF_BALANCE_BASELINE_EXPORT, default=current_bl_export
                         ): vol.Coerce(float),
                     }
                 ),

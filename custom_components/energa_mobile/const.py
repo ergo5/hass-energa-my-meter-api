@@ -9,6 +9,8 @@ CONF_EXPORT_PRICE = "export_price"  # PLN/kWh for production compensation
 CONF_IMPORT_PRICE_1 = "import_price_1"  # PLN/kWh zone 1 / peak (G12w)
 CONF_IMPORT_PRICE_2 = "import_price_2"  # PLN/kWh zone 2 / off-peak (G12w)
 CONF_PROSUMER_COEFFICIENT = "prosumer_coefficient"  # Net billing coefficient (0.0-1.0)
+CONF_BALANCE_BASELINE_IMPORT = "balance_baseline_import"  # Meter import reading at period start (kWh)
+CONF_BALANCE_BASELINE_EXPORT = "balance_baseline_export"  # Meter export reading at period start (kWh)
 
 # Default prices (PLN/kWh) - G12w tariff from 2026-01-01
 DEFAULT_IMPORT_PRICE = 1.188
@@ -16,6 +18,7 @@ DEFAULT_IMPORT_PRICE_1 = 1.2453  # Zone 1 (peak)
 DEFAULT_IMPORT_PRICE_2 = 0.5955  # Zone 2 (off-peak)
 DEFAULT_EXPORT_PRICE = 0.95
 DEFAULT_PROSUMER_COEFFICIENT = 0.8
+DEFAULT_BALANCE_BASELINE = 0.0  # 0 = count from meter installation (lifetime)
 
 # API endpoints
 BASE_URL = "https://api-mojlicznik.energa-operator.pl/dp"
