@@ -1,5 +1,23 @@
 # Changelog
 
+## v4.13.0 (2026-03-30) - DST Hour Fix & Prosumer Balance Redesign
+
+### 🐛 Bug Fixes
+- **#26 — DST hour mapping:** On spring-forward days, Energa API returns 23 hourly points with correct Unix timestamps. Previous code used array indices as hour numbers, causing all hours after the 2→3 AM gap to shift by −1h and hour 23 data to be dropped. Fixed by using API-provided `tm` timestamps instead of index-based hour construction.
+
+### ✨ New Features
+- **#27 — Prosumer balance with configurable baselines:** Redesigned `Bilans Prosumencki` to use meter totals minus user-configured baselines instead of incomplete statistics sums. New formula: `(export − baseline_export) × coefficient − (import − baseline_import)`. New config options `Baseline Import/Export (kWh)` in Options → Prices. Default 0 = lifetime calculation (backward compatible).
+
+### 🔧 Changes
+- Removed complex `_get_stats_sums()` and entity_registry lookups from prosumer balance (~50 lines removed)
+- Rich state attributes on balance sensor: full breakdown of meter, baseline, net, effective values
+- Added `include_timestamps` mode to `_fetch_chart()` for timestamp-based hour mapping
+- Added baseline field translations (strings.json, en.json, pl.json)
+
+### 🧪 Tests
+- **40 tests** (was 24): +16 DST tests (`test_dst.py`), +1 G11 Lab real-world test, +3 baseline tests
+- New `TestDSTHourMapping` class: spring-forward (23h), fall-back (25h), normal day coverage
+
 ## v4.12.1 (2026-03-29) - Critical G12W Bug Fixes
 
 ### 🐛 Bug Fixes
