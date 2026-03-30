@@ -15,7 +15,6 @@ import unittest
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-
 TZ = ZoneInfo("Europe/Warsaw")
 UTC = ZoneInfo("UTC")
 
