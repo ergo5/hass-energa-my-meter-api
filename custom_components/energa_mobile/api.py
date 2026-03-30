@@ -108,11 +108,12 @@ class EnergaAPI:
             self._meters_data = await self._fetch_all_meters()
 
         tz = ZoneInfo("Europe/Warsaw")
+        # Construct midnight using datetime constructor (not .replace())
+        # to correctly resolve UTC offset on DST transition days (#26)
+        today = datetime.now(tz).date()
         ts = int(
-            datetime.now(tz)
-            .replace(hour=0, minute=0, second=0, microsecond=0)
-            .timestamp()
-            * 1000
+            datetime(today.year, today.month, today.day, 0, 0, 0,
+                     tzinfo=tz).timestamp() * 1000
         )
 
         updated_meters = []
@@ -154,7 +155,9 @@ class EnergaAPI:
         self._meters_data = updated_meters
         return updated_meters
 
-    async def async_get_history_hourly(self, meter_point_id, date: datetime):
+    async def async_get_history_hourly(
+        self, meter_point_id, date: datetime, include_timestamps: bool = False
+    ):
         meter = next(
             (m for m in self._meters_data if m["meter_point_id"] == meter_point_id),
             None,
@@ -168,39 +171,46 @@ class EnergaAPI:
             if not meter:
                 return {"import": [], "export": []}
 
+        # Construct midnight using datetime constructor (not .replace())
+        # to correctly resolve UTC offset on DST transition days (#26).
         tz = ZoneInfo("Europe/Warsaw")
+        day = date.date() if hasattr(date, 'date') else date
         ts = int(
-            date.replace(hour=0, minute=0, second=0, microsecond=0)
-            .astimezone(tz)
-            .timestamp()
-            * 1000
+            datetime(day.year, day.month, day.day, 0, 0, 0,
+                     tzinfo=tz).timestamp() * 1000
         )
 
         result = {"import": [], "export": []}
         if meter.get("obis_plus"):
             # Total import (sum of all zones)
             result["import"] = await self._fetch_chart(
-                meter["meter_point_id"], meter["obis_plus"], ts
+                meter["meter_point_id"], meter["obis_plus"], ts,
+                include_timestamps=include_timestamps,
             )
             # Per-zone import for G12w
             if meter.get("zone_count", 1) > 1:
                 result["import_1"] = await self._fetch_chart(
-                    meter["meter_point_id"], meter["obis_plus"], ts, zone_index=0
+                    meter["meter_point_id"], meter["obis_plus"], ts,
+                    zone_index=0, include_timestamps=include_timestamps,
                 )
                 result["import_2"] = await self._fetch_chart(
-                    meter["meter_point_id"], meter["obis_plus"], ts, zone_index=1
+                    meter["meter_point_id"], meter["obis_plus"], ts,
+                    zone_index=1, include_timestamps=include_timestamps,
                 )
         if meter.get("obis_minus"):
             result["export"] = await self._fetch_chart(
-                meter["meter_point_id"], meter["obis_minus"], ts
+                meter["meter_point_id"], meter["obis_minus"], ts,
+                include_timestamps=include_timestamps,
             )
             # Per-zone export for G12w
             if meter.get("zone_count", 1) > 1:
                 result["export_1"] = await self._fetch_chart(
-                    meter["meter_point_id"], meter["obis_minus"], ts, zone_index=0
+                    meter["meter_point_id"], meter["obis_minus"], ts,
+                    zone_index=0, include_timestamps=include_timestamps,
                 )
                 result["export_2"] = await self._fetch_chart(
-                    meter["meter_point_id"], meter["obis_minus"], ts, zone_index=1
+                    meter["meter_point_id"], meter["obis_minus"], ts,
+                    zone_index=1, include_timestamps=include_timestamps,
                 )
 
         _LOGGER.debug(
@@ -274,17 +284,29 @@ class EnergaAPI:
             if day_offset > 0:
                 await asyncio.sleep(0.3)
 
-            day_data = await self.async_get_history_hourly(meter_point_id, target_date)
+            day_data = await self.async_get_history_hourly(
+                meter_point_id, target_date, include_timestamps=True
+            )
 
-            day_start = target_date.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ).astimezone(tz)
-
-            # Process each data key
+            # Process each data key — use API-provided timestamps
+            # instead of computing from array index (#26).
+            # On DST spring-forward, the API returns 23 points (not 24)
+            # with correct Unix timestamps for each hour.
             for key in keys:
-                for hour_idx, hourly_value in enumerate(day_data.get(key, [])):
+                for item in day_data.get(key, []):
+                    # With include_timestamps=True, items are
+                    # (value, timestamp_ms) tuples
+                    if isinstance(item, (list, tuple)):
+                        hourly_value, tm_ms = item
+                    else:
+                        # Fallback for unexpected format
+                        continue
+
                     if hourly_value is not None and hourly_value >= 0:
-                        hour_dt = day_start + timedelta(hours=hour_idx)
+                        hour_dt = datetime.fromtimestamp(
+                            tm_ms / 1000, tz=tz
+                        )
+
                         # Only include points after start_date
                         if hour_dt >= start_date:
                             all_points[key].append(
@@ -424,8 +446,9 @@ class EnergaAPI:
         return meters_found
 
     async def _fetch_chart(
-        self, meter_id: str, obis: str, timestamp: int, zone_index: int | None = None
-    ) -> list[float]:
+        self, meter_id: str, obis: str, timestamp: int,
+        zone_index: int | None = None, include_timestamps: bool = False,
+    ) -> list:
         """Fetch chart data for a meter.
 
         Args:
@@ -433,6 +456,9 @@ class EnergaAPI:
             obis: OBIS code (e.g. 1-0:1.8.0*255)
             timestamp: Day timestamp in milliseconds
             zone_index: None=sum all zones, 0=zone 1, 1=zone 2
+            include_timestamps: If True, return list of (value, tm_ms) tuples
+                               instead of just values. Used for statistics
+                               to correctly handle DST transitions (#26).
         """
         params = {
             "meterPoint": meter_id,
@@ -451,11 +477,17 @@ class EnergaAPI:
                 if zone_index is not None:
                     # Specific zone
                     val = zones[zone_index] if zone_index < len(zones) else None
-                    results.append(val or 0.0)
+                    val = val or 0.0
                 else:
                     # Sum all zones (total)
-                    total = sum(z or 0.0 for z in zones)
-                    results.append(total)
+                    val = sum(z or 0.0 for z in zones)
+
+                if include_timestamps:
+                    # Return (value, timestamp_ms) for DST-safe mapping
+                    tm_ms = int(p.get("tm", 0))
+                    results.append((val, tm_ms))
+                else:
+                    results.append(val)
             return results
         except EnergaTokenExpiredError:
             raise  # Propagate to coordinator for re-login
