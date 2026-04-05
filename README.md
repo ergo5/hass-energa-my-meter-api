@@ -60,10 +60,11 @@ A robust integration for **Energa Operator** in Home Assistant that communicates
 The integration **automatically calculates energy costs** and displays them in the Energy Dashboard in **PLN (złoty)**.
 
 **How it works:**
-- When you configure energy prices (see below), the integration automatically creates cost statistics
-- Import costs use the suffix **Koszt** (e.g., `Panel Energia Zużycie Koszt`)
-- Export compensation uses the suffix **Rekompensata** (e.g., `Panel Energia Produkcja Rekompensata`)
-- These sensors work seamlessly with the Energy Dashboard to show costs alongside energy usage
+- When you configure energy prices (see below), the integration creates:
+  - **Price sensors** (`Cena Poboru Strefa 1/2`) — diagnostic entities showing the current PLN/kWh rate, used for import cost tracking in the Energy Dashboard
+  - **Compensation statistics** (`Rekompensata`) — pre-calculated cumulative export compensation in PLN
+- In the Energy Dashboard, import costs are tracked via **"Use entity with current price"** pointing to the price sensor
+- Export compensation is tracked via **"Use entity tracking total compensation"** pointing to the Rekompensata entity
 
 > [!NOTE]
 > **Two-zone tariffs** (G12, G12w, G12r) are fully supported with separate zone pricing. Three-zone tariffs (G13) are not currently supported.
@@ -76,8 +77,18 @@ To enable cost calculation, you must configure energy prices:
 
 1. Go to **Settings** → **Devices & Services** → **Energa My Meter**
 2. Click **Configure** (three dots menu)
-3. Select **"Set Energy Prices"** (Ustaw Ceny Energii)
-4. Enter your prices:
+3. The options menu will appear with the following choices:
+
+| Menu Option | Description |
+|---|---|
+| **Set Energy Prices** | Configure PLN/kWh rates for cost calculation |
+| **Download History** | Fetch & repair historical hourly data |
+| **Clear Energy Panel Statistics** | Wipe all statistics before a fresh re-import |
+| **Change Credentials** | Update your Mój Licznik username/password |
+
+### Setting Energy Prices
+
+Select **"Set Energy Prices"** and enter your tariff rates:
 
 | Tariff | Field | Default (PLN/kWh) |
 |---|---|---|
@@ -85,10 +96,15 @@ To enable cost calculation, you must configure energy prices:
 | **G12/G12w** zone 1 (peak) | Import Zone 1 | 1.2453 |
 | **G12/G12w** zone 2 (off-peak) | Import Zone 2 | 0.5955 |
 | All tariffs | Export | 0.95 |
-| Prosumer accounts | Prosumer coefficient | 0.8 (80%) |
+| All tariffs | Prosumer coefficient | 0.8 (80%) |
+| Prosumer accounts | Baseline import [kWh] | 0 |
+| Prosumer accounts | Baseline export [kWh] | 0 |
 
 > [!TIP]
 > The options form automatically adapts to your tariff — two-zone meters (G12/G12w) will see zone-specific fields, single-zone meters (G11) will see a single import price.
+
+> [!NOTE]
+> **Prosumer baseline** (`balance_baseline_import` / `balance_baseline_export`) sets the meter reading at the start of your net billing period. Leave at `0` to calculate the prosumer balance from the beginning of recorded history.
 
 ---
 
@@ -108,8 +124,7 @@ The integration creates multiple sensors organized by function:
 |-------------|-------------|---------|
 | `Panel Energia Zużycie` | Cumulative consumption | Grid Consumption in Dashboard |
 | `Panel Energia Produkcja` | Cumulative production | Return to Grid in Dashboard |
-| `Panel Energia Zużycie Koszt` | Consumption cost (PLN) | Auto-created for cost tracking |
-| `Panel Energia Produkcja Rekompensata` | Production compensation (PLN) | Auto-created for cost tracking |
+| `Panel Energia Produkcja Rekompensata` | Production compensation (PLN) | Select as export compensation entity in Dashboard |
 
 #### Multi-Zone (G12/G12w) — auto-created for two-zone tariffs
 
@@ -117,12 +132,10 @@ The integration creates multiple sensors organized by function:
 |-------------|-------------|---------|
 | `Panel Energia Strefa 1` | Peak zone consumption | Zone 1 import in Dashboard |
 | `Panel Energia Strefa 2` | Off-peak zone consumption | Zone 2 import in Dashboard |
-| `Panel Energia Strefa 1 Koszt` | Peak zone cost (PLN) | Zone 1 cost tracking |
-| `Panel Energia Strefa 2 Koszt` | Off-peak zone cost (PLN) | Zone 2 cost tracking |
 | `Panel Energia Produkcja Strefa 1` | Peak zone production | Zone 1 export in Dashboard |
 | `Panel Energia Produkcja Strefa 2` | Off-peak zone production | Zone 2 export in Dashboard |
-| `Panel Energia Produkcja Strefa 1 Rekompensata` | Peak zone compensation (PLN) | Zone 1 export cost |
-| `Panel Energia Produkcja Strefa 2 Rekompensata` | Off-peak zone compensation (PLN) | Zone 2 export cost |
+| `Panel Energia Produkcja Strefa 1 Rekompensata` | Peak zone compensation (PLN) | Zone 1 export compensation entity |
+| `Panel Energia Produkcja Strefa 2 Rekompensata` | Off-peak zone compensation (PLN) | Zone 2 export compensation entity |
 
 ### Daily Sensors
 | Sensor Name | Description |
@@ -147,6 +160,23 @@ The integration creates multiple sensors organized by function:
 
 *Only available for prosumer accounts
 
+### Diagnostic / Price Sensors
+
+These sensors show the **currently configured prices** — visible under the "Diagnostic" section of the device page:
+
+| Sensor Name | Description | Unit | Tariff |
+|-------------|-------------|------|--------|
+| `Cena Poboru` | Import price (single-zone) | PLN/kWh | G11 only |
+| `Cena Poboru Strefa 1` | Peak zone import price | PLN/kWh | G12/G12w only |
+| `Cena Poboru Strefa 2` | Off-peak zone import price | PLN/kWh | G12/G12w only |
+| `Cena Oddania` | Export compensation rate | PLN/kWh | Prosumer only* |
+| `Współczynnik Prosumencki` | Net billing coefficient | — | Prosumer only* |
+
+\* Only created for accounts with export metering (prosumer/producer-consumer)
+
+> [!TIP]
+> You can use `Cena Poboru` (G11) or `Cena Poboru Strefa 1/2` (G12/G12w) as **"Use entity with current price"** in the Energy Dashboard configuration — this lets you update the price without re-configuring the dashboard.
+
 ### Prosumer Sensors (auto-created for prosumer accounts)
 | Sensor Name | Description |
 |-------------|-------------|
@@ -158,46 +188,50 @@ The integration creates multiple sensors organized by function:
 
 To see correctly calculated statistics **and costs** in the Energy Dashboard, you MUST select the specific sensors labeled **"Panel Energia"**.
 
-### Step 1: Configure Grid Consumption
+Go to **Settings** → **Dashboards** → **Energy** → **Electricity grid** section.
 
-<img src="docs/energy_dashboard_config.png" alt="Energy Dashboard Configuration" width="400"/>
+### Step 1: Add Grid Consumption
 
-*Example configuration showing Panel Energia sensors with cost tracking*
+Click **"Add consumption"** (Dodaj zużycie) for each zone:
 
-### Single-Zone Tariff (G11)
+**Single-Zone (G11):** Add `Panel Energia Zużycie`
+**Multi-Zone (G12/G12w):** Add `Panel Energia Strefa 1` and `Panel Energia Strefa 2` separately
 
-| Dashboard Section | Energy Sensor | Cost Sensor |
-|:---|:---|:---|
-| **Grid Consumption** (Pobór z sieci) | Panel Energia Zużycie | Panel Energia Zużycie Koszt |
-| **Return to Grid** (Oddawanie do sieci) | Panel Energia Produkcja | Panel Energia Produkcja Rekompensata |
+For each consumption entry, configure **cost tracking** (Śledzenie kosztów):
+1. Select **"Use entity with current price"** (Użyj encji z bieżącą ceną)
+2. In the **"Entity with current price"** field, choose the matching **Cena Poboru** sensor:
+   - G11: `Cena Poboru`
+   - G12/G12w zone 1: `Cena Poboru Strefa 1`
+   - G12/G12w zone 2: `Cena Poboru Strefa 2`
 
-### Multi-Zone Tariff (G12 / G12w)
+### Step 2: Add Return to Grid
 
-For two-zone tariffs, add **each zone separately**:
+Click **"Add return"** (Dodaj produkcję) for each zone:
 
-| Dashboard Section | Energy Sensor | Cost Sensor |
-|:---|:---|:---|
-| **Grid Consumption** (zone 1 — peak) | Panel Energia Strefa 1 | Panel Energia Strefa 1 Koszt |
-| **Grid Consumption** (zone 2 — off-peak) | Panel Energia Strefa 2 | Panel Energia Strefa 2 Koszt |
-| **Return to Grid** (zone 1 — peak) | Panel Energia Produkcja Strefa 1 | Panel Energia Produkcja Strefa 1 Rekompensata |
-| **Return to Grid** (zone 2 — off-peak) | Panel Energia Produkcja Strefa 2 | Panel Energia Produkcja Strefa 2 Rekompensata |
+**Single-Zone (G11):** Add `Panel Energia Produkcja`
+**Multi-Zone (G12/G12w):** Add `Panel Energia Produkcja Strefa 1` and `Produkcja Strefa 2` separately
 
-### Step 2: Configure Cost Sensors
+For each return entry, configure **compensation tracking** (Rekompensata za eksport):
+1. Select **"Use entity tracking total compensation"** (Użyj encji śledzącej całkowitą wartość rekompensaty)
+2. In the **"Entity with total compensation"** field, choose the matching **Rekompensata** sensor:
+   - G11: `Panel Energia Produkcja Rekompensata`
+   - G12/G12w zone 1: `Panel Energia Produkcja Strefa 1 Rekompensata`
+   - G12/G12w zone 2: `Panel Energia Produkcja Strefa 2 Rekompensata`
 
-<img src="docs/energy_cost_config.png" alt="Cost Sensor Configuration" width="400"/>
+### Step 3: Power Measurement
 
-*Configure cost tracking by selecting the matching cost sensor*
+Select **"No power sensor"** (Brak sensora mocy) — this integration provides energy data only, not real-time power.
 
-When adding energy sources to the Energy Dashboard:
-1. Select the **Panel Energia** sensor for energy tracking
-2. In the **cost** field, select the matching **Koszt** (import) or **Rekompensata** (export) sensor
-3. The cost sensor **must match** the energy sensor (e.g., `Zużycie` with `Zużycie Koszt`)
+Click **Save** (Zapisz).
+
+> [!WARNING]
+> After saving, the Energy Dashboard may show **"Encja niezdefiniowana"** (Undefined entity) for some sensors. **This is expected.** Panel Energia sensors are statistics-only entities that don't have a live state — their data will appear correctly in the dashboard charts after the next data update cycle (typically within 1 hour).
 
 > [!IMPORTANT]
-> **Do NOT use** `Zużycie Dziś`, `Produkcja Dziś`, or `Stan Licznika` sensors for the Energy Dashboard — only **Panel Energia** sensors produce correct statistics.
+> **Do NOT use** `Zużycie Dziś`, `Produkcja Dziś`, or `Stan Licznika` sensors for the Energy Dashboard — only **Panel Energia** sensors produce correct cumulative statistics.
 
 > [!NOTE]
-> **"Entity Unavailable" (Encja niedostępna)?** This is **normal** for Panel Energia sensors. They work in background for the Energy Dashboard and don't have a live "state" to display. They will still work correctly.
+> **Why different cost methods for import vs export?** Import costs use a **price entity** (PLN/kWh) — HA multiplies it by hourly consumption automatically. Export compensation uses a **total compensation entity** (PLN) — the integration pre-calculates the cumulative amount based on the configured export rate and prosumer coefficient.
 
 ---
 
@@ -205,14 +239,17 @@ When adding energy sources to the Energy Dashboard:
 
 Use this feature if you have missing data OR if you see incorrect spikes in your Energy Dashboard.
 
-1.  Go to **Settings** -> **Devices & Services** -> **Energa My Meter** -> **Configure**.
-2.  Select **"Download History"** (Pobierz Historię Danych).
-3.  Choose a **Start Date** (e.g., 30 days ago).
+1.  Go to **Settings** → **Devices & Services** → **Energa My Meter** → **Configure**.
+2.  Select **"Download History"**.
+3.  Choose a **Start Date** (e.g., 30 days ago, or your contract date shown in the dialog).
 4.  Click **Submit**.
 
 **How it works:** The integration downloads fresh data from Energa and calculates clean, continuous statistics based on your current meter reading. This effectively **overwrites** any corrupted historical data, including cost data.
 
 *The process happens in the background. Check logs for progress.*
+
+> [!TIP]
+> If you need a completely clean slate (e.g., after a tariff change or major data corruption), first use **"Clear Energy Panel Statistics"** from the Configure menu, then run **"Download History"**.
 
 ---
 
@@ -236,14 +273,17 @@ If you see repeated **errors** (not warnings) related to Energa, try removing an
 
 ### Sensors "Panel Energia" Missing?
 
-- Check the **Diagnostic** entities section
-- Enable "Show disabled entities" in entity list
+- Panel Energia sensors are created during integration setup and appear in the entity list
+- They show as **"unknown"** — this is expected, their data lives in the statistics database
+- If missing entirely, check that your Energa account has active meters with consumption data
 
 ### Cost Not Showing in Energy Dashboard?
 
 1. **Verify prices are configured:** Settings → Energa My Meter → Configure → Set Energy Prices
-2. **Check cost statistics exist:** Look for **Koszt** (import) or **Rekompensata** (export) statistics in Developer Tools → Statistics
-3. **Ensure correct mapping:** Cost sensor must match energy sensor (e.g., `Zużycie` with `Zużycie Koszt`)
+2. **Check price sensors work:** Verify that `Cena Poboru Strefa 1/2` shows a numeric value (not "unavailable") in the entity list
+3. **Verify Dashboard config:** Import must use **"Use entity with current price"** + `Cena Poboru`. Export must use **"Use entity tracking total compensation"** + `Rekompensata`
+4. **Check statistics exist:** Look for **Rekompensata** statistics in Developer Tools → Statistics
+5. **After changing prices:** Use **"Download History"** to recalculate cost statistics with the new rates
 
 ### Data Not Appearing in Energy Dashboard?
 

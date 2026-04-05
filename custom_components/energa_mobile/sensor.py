@@ -23,6 +23,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -191,6 +192,17 @@ async def async_setup_entry(
                     entry=entry,
                 )
             )
+            sensors.append(
+                EnergaCostStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="import_1",
+                    name="Panel Energia Strefa 1 Koszt",
+                    device_info=device_info,
+                    entry=entry,
+                    serial=serial,
+                )
+            )
 
             # Strefa 2 (tania)
             sensors.append(
@@ -203,6 +215,17 @@ async def async_setup_entry(
                     entry=entry,
                 )
             )
+            sensors.append(
+                EnergaCostStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="import_2",
+                    name="Panel Energia Strefa 2 Koszt",
+                    device_info=device_info,
+                    entry=entry,
+                    serial=serial,
+                )
+            )
         else:
             # Single-zone tariff: one statistics sensor
             sensors.append(
@@ -213,6 +236,17 @@ async def async_setup_entry(
                     name="Panel Energia Zużycie",
                     device_info=device_info,
                     entry=entry,
+                )
+            )
+            sensors.append(
+                EnergaCostStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="import",
+                    name="Panel Energia Zużycie Koszt",
+                    device_info=device_info,
+                    entry=entry,
+                    serial=serial,
                 )
             )
 
@@ -230,6 +264,17 @@ async def async_setup_entry(
                 )
             )
             sensors.append(
+                EnergaCostStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="export_1",
+                    name="Panel Energia Produkcja Strefa 1 Rekompensata",
+                    device_info=device_info,
+                    entry=entry,
+                    serial=serial,
+                )
+            )
+            sensors.append(
                 EnergaStatisticsSensor(
                     coordinator=coordinator,
                     meter_id=meter_id,
@@ -237,6 +282,17 @@ async def async_setup_entry(
                     name="Panel Energia Produkcja Strefa 2",
                     device_info=device_info,
                     entry=entry,
+                )
+            )
+            sensors.append(
+                EnergaCostStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="export_2",
+                    name="Panel Energia Produkcja Strefa 2 Rekompensata",
+                    device_info=device_info,
+                    entry=entry,
+                    serial=serial,
                 )
             )
         elif meter.get("obis_minus"):
@@ -250,6 +306,17 @@ async def async_setup_entry(
                     entry=entry,
                 )
             )
+            sensors.append(
+                EnergaCostStatisticsSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="export",
+                    name="Panel Energia Produkcja Rekompensata",
+                    device_info=device_info,
+                    entry=entry,
+                    serial=serial,
+                )
+            )
 
         # === PROSUMER BALANCE SENSOR ===
         # (only for prosumers — meters with export capability)
@@ -261,6 +328,37 @@ async def async_setup_entry(
                     device_info=device_info,
                     entry=entry,
                     has_zones=has_zones,
+                )
+            )
+
+        # === PRICE SENSORS (F1: v4.14) ===
+
+        if has_zones:
+            price_keys = [
+                ("import_1", "Cena Poboru Strefa 1", "mdi:cash-multiple"),
+                ("import_2", "Cena Poboru Strefa 2", "mdi:cash-multiple"),
+            ]
+        else:
+            price_keys = [
+                ("import", "Cena Poboru", "mdi:cash-multiple"),
+            ]
+
+        if meter.get("obis_minus"):
+            price_keys.append(("export", "Cena Oddania", "mdi:cash-refund"))
+            price_keys.append(
+                ("coefficient", "Współczynnik Prosumencki", "mdi:percent")
+            )
+
+        for p_key, p_name, p_icon in price_keys:
+            sensors.append(
+                EnergaPriceSensor(
+                    data_key=p_key,
+                    name=p_name,
+                    icon=p_icon,
+                    device_info=device_info,
+                    entry=entry,
+                    serial=serial,
+                    meter_id=meter_id,
                 )
             )
 
@@ -949,3 +1047,120 @@ class EnergaInfoSensor(CoordinatorEntity, SensorEntity):
             if str(meter.get("meter_point_id")) == str(self._meter_id):
                 return meter.get(self._data_key)
         return None
+
+
+class EnergaCostStatisticsSensor(CoordinatorEntity, SensorEntity):
+    """Pure placeholder entity for cost statistics.
+
+    Required so that HA's state machine recognizes the statistic_id
+    used by async_import_statistics in EnergaStatisticsSensor.
+    This sensor does NOT import statistics itself — all cost import
+    logic lives in EnergaStatisticsSensor._handle_coordinator_update.
+    """
+
+    def __init__(
+        self,
+        coordinator: EnergaCoordinator,
+        meter_id: str,
+        data_key: str,
+        name: str,
+        device_info: DeviceInfo,
+        entry: ConfigEntry,
+        serial: str = "",
+    ) -> None:
+        """Initialize cost statistics placeholder sensor."""
+        super().__init__(coordinator)
+
+        self._meter_id = meter_id
+        self._data_key = data_key
+        self._entry = entry
+
+        # Entity attributes
+        self._attr_name = name
+        self._attr_unique_id = f"energa_{serial}_{data_key}_cost_stats"
+        self._attr_has_entity_name = True
+
+        # Force entity_id to match statistic_id used by EnergaStatisticsSensor
+        suffix_to_name = {
+            "import": "panel_energia_zuzycie",
+            "import_1": "panel_energia_strefa_1",
+            "import_2": "panel_energia_strefa_2",
+            "export": "panel_energia_produkcja",
+            "export_1": "panel_energia_produkcja_strefa_1",
+            "export_2": "panel_energia_produkcja_strefa_2",
+        }
+        energy_slug = suffix_to_name.get(data_key, f"panel_{data_key}")
+        self.entity_id = f"sensor.energa_{serial}_{energy_slug}_cost"
+
+        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_native_unit_of_measurement = "PLN"
+
+        # Device info
+        self._attr_device_info = device_info
+
+        # Icon
+        self._attr_icon = (
+            "mdi:currency-usd" if "import" in data_key else "mdi:piggy-bank"
+        )
+
+    @property
+    def native_value(self):
+        """Return None — cost data flows via async_import_statistics."""
+        return None
+
+    @property
+    def available(self) -> bool:
+        """Cost placeholder is available when coordinator has data."""
+        return self.coordinator.data is not None
+
+
+class EnergaPriceSensor(SensorEntity):
+    """Diagnostic sensor exposing configured energy price as HA entity.
+
+    Enables Energy Dashboard "Use entity with current price" mode.
+    Not tied to coordinator — value comes from config options.
+    """
+
+    def __init__(
+        self,
+        data_key: str,
+        name: str,
+        icon: str,
+        device_info: DeviceInfo,
+        entry: ConfigEntry,
+        serial: str,
+        meter_id: str,
+    ) -> None:
+        """Initialize price sensor."""
+        self._data_key = data_key
+        self._entry = entry
+        self._serial = serial
+        self._meter_id = meter_id
+
+        self._attr_name = name
+        self._attr_unique_id = f"energa_{serial}_{data_key}_price"
+        self._attr_has_entity_name = True
+        self._attr_icon = icon
+        self._attr_device_info = device_info
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+        if data_key == "coefficient":
+            self._attr_native_unit_of_measurement = None
+            self._attr_state_class = None
+        else:
+            self._attr_native_unit_of_measurement = "PLN/kWh"
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def native_value(self):
+        """Return price from config options."""
+        opts = dict(self._entry.options)
+
+        if self._data_key == "coefficient":
+            return float(
+                opts.get(CONF_PROSUMER_COEFFICIENT, DEFAULT_PROSUMER_COEFFICIENT)
+            )
+
+        return get_price_for_key(
+            opts, self._data_key, meter_id=self._meter_id
+        )
