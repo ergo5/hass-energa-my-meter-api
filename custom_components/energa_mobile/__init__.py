@@ -245,7 +245,7 @@ async def _import_meter_history(
             target_day = (start_date + timedelta(days=day_offset)).replace(
                 tzinfo=TIMEZONE
             )
-            if target_day.date() > datetime.now().date():
+            if target_day.date() > datetime.now(TIMEZONE).date():
                 break
 
             # Rate limiting

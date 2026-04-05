@@ -420,12 +420,30 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
             if statistic_ids:
                 cost_statistic_ids = [f"{sid}_cost" for sid in statistic_ids]
                 all_statistic_ids = statistic_ids + cost_statistic_ids
-                rec.async_clear_statistics(all_statistic_ids)
-                _LOGGER.info(
-                    "Cleared Energy Panel statistics for %d Energa sensors: %s",
-                    len(statistic_ids),
-                    all_statistic_ids,
-                )
+
+                # HA 2026.4+ removed async_clear_statistics from Recorder
+                if hasattr(rec, "async_clear_statistics"):
+                    rec.async_clear_statistics(all_statistic_ids)
+                    _LOGGER.info(
+                        "Cleared Energy Panel statistics for %d Energa sensors: %s",
+                        len(statistic_ids),
+                        all_statistic_ids,
+                    )
+                else:
+                    _LOGGER.warning(
+                        "async_clear_statistics not available (HA 2026.4+). "
+                        "Use Developer Tools → Statistics to clear manually: %s",
+                        all_statistic_ids,
+                    )
+                    from homeassistant.components import persistent_notification
+                    persistent_notification.async_create(
+                        self.hass,
+                        "Funkcja czyszczenia statystyk nie jest dostępna w tej wersji Home Assistant.\n\n"
+                        "Użyj **Narzędzia deweloperskie → Statystyki** aby ręcznie wyczyścić:\n"
+                        + "\n".join(f"- `{sid}`" for sid in all_statistic_ids),
+                        title="Energa: Czyszczenie niedostępne",
+                        notification_id="energa_clear_stats_unavailable",
+                    )
             else:
                 _LOGGER.warning("No Energa Panel Energia sensors found to clear")
 
