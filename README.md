@@ -226,16 +226,9 @@ Click **Save** (Zapisz).
 
 ### Example: Multi-Zone (G12/G12w) Configuration
 
-<details>
-<summary>📸 Click to see example screenshots</summary>
-
-#### Grid connection — consumption, production, cost tracking and compensation
-
 ![Grid connection configuration — part 1](docs/g12_conf_1.png)
 
 ![Grid connection configuration — part 2](docs/g12_conf_2.png)
-
-</details>
 
 > [!WARNING]
 > After saving, the Energy Dashboard may show **"Encja niezdefiniowana"** (Undefined entity) for some sensors. **This is expected.** Panel Energia sensors are statistics-only entities that don't have a live state — their data will appear correctly in the dashboard charts after the next data update cycle (typically within 1 hour).
