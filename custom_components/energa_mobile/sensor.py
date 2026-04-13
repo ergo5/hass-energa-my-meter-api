@@ -132,6 +132,29 @@ async def async_setup_entry(
             )
         )
 
+        # 1b. Zone-specific Import totals for G12w (#29)
+        if has_zones:
+            sensors.append(
+                EnergaLiveSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="total_plus_1",
+                    name="Stan Licznika Import Strefa 1",
+                    icon="mdi:counter",
+                    device_info=device_info,
+                )
+            )
+            sensors.append(
+                EnergaLiveSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="total_plus_2",
+                    name="Stan Licznika Import Strefa 2",
+                    icon="mdi:counter",
+                    device_info=device_info,
+                )
+            )
+
         # 2. Total Export (Production to grid - lifetime counter)
         if meter.get("total_minus"):
             sensors.append(
@@ -140,6 +163,29 @@ async def async_setup_entry(
                     meter_id=meter_id,
                     data_key="total_minus",
                     name="Stan Licznika Export",
+                    icon="mdi:counter",
+                    device_info=device_info,
+                )
+            )
+
+        # 2b. Zone-specific Export totals for G12w prosumers (#29)
+        if has_zones and meter.get("total_minus"):
+            sensors.append(
+                EnergaLiveSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="total_minus_1",
+                    name="Stan Licznika Export Strefa 1",
+                    icon="mdi:counter",
+                    device_info=device_info,
+                )
+            )
+            sensors.append(
+                EnergaLiveSensor(
+                    coordinator=coordinator,
+                    meter_id=meter_id,
+                    data_key="total_minus_2",
+                    name="Stan Licznika Export Strefa 2",
                     icon="mdi:counter",
                     device_info=device_info,
                 )
@@ -813,6 +859,10 @@ class EnergaProsumerBalanceSensor(CoordinatorEntity, SensorEntity):
             "net_export_kwh": round(net_export, 2),
             "coefficient": coefficient,
             "effective_export_kwh": round(net_export * coefficient, 2),
+            "calculation_method": "API meter totals minus baselines",
+            "formula": "(export − baseline_export) × coefficient − (import − baseline_import)",
+            "source": "Energa API: real-time meter readings (lastMeasurements)",
+            "note": "Ustaw baseline_import/export w Opcjach integracji na stan licznika z początku okresu rozliczeniowego",
         }
 
     @property

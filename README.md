@@ -148,6 +148,13 @@ The integration creates multiple sensors organized by function:
 |-------------|-------------|
 | `Stan Licznika Import` | Total meter reading (consumption) |
 | `Stan Licznika Export` | Total meter reading (production) |
+| `Stan Licznika Import Strefa 1` | Zone 1 meter reading — G12/G12w only |
+| `Stan Licznika Import Strefa 2` | Zone 2 meter reading — G12/G12w only |
+| `Stan Licznika Export Strefa 1` | Zone 1 export reading — G12/G12w prosumers only |
+| `Stan Licznika Export Strefa 2` | Zone 2 export reading — G12/G12w prosumers only |
+
+> [!TIP]
+> Zone sensors (`Strefa 1/2`) provide **numeric values** usable in Jinja2 templates and automations — unlike `Panel Energia` statistics sensors which intentionally show `unknown`.
 
 ### Metadata Sensors
 | Sensor Name | Description |
@@ -181,6 +188,8 @@ These sensors show the **currently configured prices** — visible under the "Di
 | Sensor Name | Description |
 |-------------|-------------|
 | `Bilans Prosumencki` | Net billing balance (export × coeff − import) in kWh |
+
+The `Bilans Prosumencki` entity exposes diagnostic attributes: `calculation_method`, `formula`, `source`, and `note` (baseline configuration hint).
 
 ---
 
