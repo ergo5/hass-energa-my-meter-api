@@ -1,5 +1,10 @@
 # Changelog
 
+## v4.15.1 (2026-05-17)
+
+### 🐛 Bug Fixes
+- **#31 — `ConfigEntryNotReady` on Energa server outage:** When the Energa API returns `success=false` due to a temporary server outage (not invalid credentials), the integration now raises `ConfigEntryNotReady` (automatic retry) instead of `ConfigEntryAuthFailed` (permanent block requiring manual re-authentication). The fix checks whether the API error message contains auth-related keywords (`login`, `password`, `credentials`, `auth`). Plain `success=false` without an auth error is treated as a server issue.
+
 ## v4.13.0 (2026-03-30) - DST Hour Fix & Prosumer Balance Redesign
 
 ### 🐛 Bug Fixes

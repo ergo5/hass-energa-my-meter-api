@@ -85,7 +85,18 @@ class EnergaAPI:
                 except (ValueError, TypeError, aiohttp.ContentTypeError):
                     raise EnergaConnectionError("Invalid JSON")
                 if not data.get("success"):
-                    raise EnergaAuthError("Invalid credentials (API success=False)")
+                    error_msg = str(data.get("error") or data.get("message") or "")
+                    if error_msg and any(
+                        kw in error_msg.lower() for kw in (
+                            "login", "password", "username", "credentials", "auth",
+                        )
+                    ):
+                        raise EnergaAuthError(
+                            f"Invalid credentials (API: {error_msg})"
+                        )
+                    raise EnergaConnectionError(
+                        "API returned success=False (possible server outage)"
+                    )
 
                 # Token might be missing in newer API versions; session cookies are sufficient
                 self._token = data.get("token") or (data.get("response") or {}).get(

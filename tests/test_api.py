@@ -43,6 +43,28 @@ class TestAsyncLogin:
             await api.async_login()
 
     @pytest.mark.asyncio
+    async def test_login_server_outage_no_error(self, api, mock_session):
+        """Login raises EnergaConnectionError when success=false with no auth error."""
+        session_resp = make_mock_response(200, {})
+        login_resp = make_mock_response(200, {"success": False})
+
+        mock_session.get = MagicMock(side_effect=[session_resp, login_resp])
+
+        with pytest.raises(EnergaConnectionError):
+            await api.async_login()
+
+    @pytest.mark.asyncio
+    async def test_login_server_outage_generic_error(self, api, mock_session):
+        """Login raises EnergaConnectionError when success=false with non-auth error."""
+        session_resp = make_mock_response(200, {})
+        login_resp = make_mock_response(200, {"success": False, "error": "server.unavailable"})
+
+        mock_session.get = MagicMock(side_effect=[session_resp, login_resp])
+
+        with pytest.raises(EnergaConnectionError):
+            await api.async_login()
+
+    @pytest.mark.asyncio
     async def test_login_http_error(self, api, mock_session):
         """Login raises EnergaConnectionError on HTTP error."""
         session_resp = make_mock_response(200, {})
