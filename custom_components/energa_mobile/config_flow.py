@@ -210,13 +210,30 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
         )
 
     def _has_multi_zone_meters(self) -> bool:
-        """Check if any meter uses multi-zone tariff (G12w)."""
+        """Check if any meter uses multi-zone tariff (G12w).
+
+        Checks in priority order:
+        1. Persistent hint stored in options from previous session
+        2. Zone-specific price keys already saved in options (fix for issue #34:
+           API may not be loaded yet when entering options after restart)
+        3. Live API data (if available)
+        """
+        # 1. Persistent hint saved when prices were last configured
+        if self._config_entry.options.get("has_multi_zone"):
+            return True
+
+        # 2. Zone-specific price already saved → must be G12w
+        if self._config_entry.options.get(CONF_IMPORT_PRICE_1) is not None:
+            return True
+
+        # 3. Live API data
         entry_data = self.hass.data.get(DOMAIN, {}).get(
             self._config_entry.entry_id, {}
         )
         api = entry_data.get("api") if isinstance(entry_data, dict) else None
         if api and hasattr(api, "has_multi_zone_meters"):
             return api.has_multi_zone_meters()
+
         return False
 
     def _get_active_meters(self) -> list:
@@ -245,6 +262,14 @@ class EnergaOptionsFlow(config_entries.OptionsFlow):
                 for key, val in user_input.items():
                     meter_key = f"meter_{serial}_{key}"
                     new_options[meter_key] = val
+
+            # Persist multi-zone hint so options form shows correct fields
+            # even if API is not loaded on next entry (fix for issue #34)
+            has_zones_now = any(
+                m.get("zone_count", 1) > 1 for m in meters
+            ) if meters else False
+            if has_zones_now or CONF_IMPORT_PRICE_1 in user_input:
+                new_options["has_multi_zone"] = True
 
             _LOGGER.debug("Saving options with %d keys: %s", len(new_options), list(new_options.keys()))
             return self.async_create_entry(title="", data=new_options)

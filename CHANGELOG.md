@@ -1,5 +1,10 @@
 # Changelog
 
+## v4.15.2 (2026-07-15)
+
+### 🐛 Bug Fixes
+- **#34 — Cost always 0 PLN for G12w tariff:** The options form for configuring energy prices displayed only a single "import price" field (G11 mode) when `_has_multi_zone_meters()` returned `False` on first entry after HA restart (API data not yet loaded). This caused `import_price_1`/`import_price_2` keys to never be saved, resulting in cost statistics always being written as 0 PLN. Fixed by adding two additional detection paths: (1) a persistent `has_multi_zone` hint saved to options when prices are successfully configured, and (2) a check for the presence of an existing `import_price_1` key in options. The live API query remains as final fallback. Affects users with G12w tariff and no photovoltaics.
+
 ## v4.15.1 (2026-05-17)
 
 ### 🐛 Bug Fixes
