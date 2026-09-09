@@ -441,7 +441,7 @@ async def _import_meter_history(
             else "",
         )
 
-        def build_statistics(
+        async def build_statistics(
             points: list, entity_suffix: str, entry: ConfigEntry
         ) -> int:
             if not points:
@@ -450,7 +450,7 @@ async def _import_meter_history(
             # Get price from config options
             price = get_price_for_key(dict(entry.options), entity_suffix, meter_id=str(serial))
 
-            # Forward calculation from zero - sort oldest first
+            # Forward calculation - sort oldest first
             points.sort(key=lambda x: x["dt"])
 
             # Merge duplicate UTC timestamps (DST spring-forward gap:
@@ -468,7 +468,97 @@ async def _import_meter_history(
                     merged.append(dict(point))
             points = merged
 
+            # Map entity suffix to sensor name
+            suffix_to_name = {
+                "import": "panel_energia_zuzycie",
+                "import_1": "panel_energia_strefa_1",
+                "import_2": "panel_energia_strefa_2",
+                "export": "panel_energia_produkcja",
+                "export_1": "panel_energia_produkcja_strefa_1",
+                "export_2": "panel_energia_produkcja_strefa_2",
+            }
+            energy_sensor_name = suffix_to_name.get(
+                entity_suffix, f"panel_{entity_suffix}"
+            )
+            entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
+
+            # Pre-fetch last statistic before start of imported points to anchor running_sum
             running_sum = 0.0
+            first_point_dt = points[0]["dt"]
+
+            try:
+                from homeassistant.components.recorder import get_instance
+                from homeassistant.components.recorder.statistics import (
+                    get_last_statistics,
+                    statistics_during_period,
+                )
+
+                # Query stats in 48-hour window prior to first_point_dt
+                window_start = first_point_dt - timedelta(hours=48)
+                prev_stats = await get_instance(hass).async_add_executor_job(
+                    statistics_during_period,
+                    hass,
+                    window_start,
+                    first_point_dt,
+                    [entity_id],
+                    "hour",
+                    None,
+                    {"sum"},
+                )
+                if prev_stats and entity_id in prev_stats and prev_stats[entity_id]:
+                    valid_prev = [
+                        r
+                        for r in prev_stats[entity_id]
+                        if r.get("sum") is not None
+                        and (
+                            (
+                                isinstance(r["start"], (int, float))
+                                and dt_util.utc_from_timestamp(r["start"])
+                                < first_point_dt
+                            )
+                            or (
+                                isinstance(r["start"], datetime)
+                                and r["start"] < first_point_dt
+                            )
+                        )
+                    ]
+                    if valid_prev:
+                        running_sum = float(valid_prev[-1]["sum"])
+                        _LOGGER.info(
+                            "Anchored %s import sum to %.3f kWh from previous record before %s",
+                            entity_id,
+                            running_sum,
+                            first_point_dt,
+                        )
+                elif running_sum == 0.0:
+                    last_stats = await get_instance(hass).async_add_executor_job(
+                        get_last_statistics,
+                        hass,
+                        1,
+                        entity_id,
+                        True,
+                        {"sum", "start"},
+                    )
+                    if last_stats.get(entity_id):
+                        last_rec = last_stats[entity_id][0]
+                        last_st = last_rec.get("start")
+                        if last_st is not None:
+                            last_dt = (
+                                dt_util.utc_from_timestamp(last_st)
+                                if isinstance(last_st, (int, float))
+                                else last_st
+                            )
+                            if last_dt < first_point_dt:
+                                running_sum = float(last_rec.get("sum", 0.0))
+                                _LOGGER.info(
+                                    "Anchored %s import sum to %.3f kWh from last known record at %s",
+                                    entity_id,
+                                    running_sum,
+                                    last_dt,
+                                )
+            except Exception as err:
+                _LOGGER.warning("Could not anchor statistics sum for %s: %s", entity_id, err)
+
             statistics = []
 
             for point in points:
@@ -504,20 +594,6 @@ async def _import_meter_history(
                         "state": hourly_cost,
                     }
                 )
-
-            # Map entity suffix to sensor name
-            suffix_to_name = {
-                "import": "panel_energia_zuzycie",
-                "import_1": "panel_energia_strefa_1",
-                "import_2": "panel_energia_strefa_2",
-                "export": "panel_energia_produkcja",
-                "export_1": "panel_energia_produkcja_strefa_1",
-                "export_2": "panel_energia_produkcja_strefa_2",
-            }
-            energy_sensor_name = suffix_to_name.get(
-                entity_suffix, f"panel_{entity_suffix}"
-            )
-            entity_id = f"sensor.energa_{meter_id}_{energy_sensor_name}"
 
             # Import energy statistics
             metadata = StatisticMetaData(
@@ -571,10 +647,10 @@ async def _import_meter_history(
 
         # Build and import statistics
         if has_zones:
-            count_1 = build_statistics(import_1_points, "import_1", entry)
-            count_2 = build_statistics(import_2_points, "import_2", entry)
-            count_exp1 = build_statistics(export_1_points, "export_1", entry)
-            count_exp2 = build_statistics(export_2_points, "export_2", entry)
+            count_1 = await build_statistics(import_1_points, "import_1", entry)
+            count_2 = await build_statistics(import_2_points, "import_2", entry)
+            count_exp1 = await build_statistics(export_1_points, "export_1", entry)
+            count_exp2 = await build_statistics(export_2_points, "export_2", entry)
             total_count = count_1 + count_2 + count_exp1 + count_exp2
 
             persistent_notification.async_create(
@@ -587,8 +663,8 @@ async def _import_meter_history(
                 notification_id=f"energa_import_{meter_id}",
             )
         else:
-            count_import = build_statistics(import_points, "import", entry)
-            count_export = build_statistics(export_points, "export", entry)
+            count_import = await build_statistics(import_points, "import", entry)
+            count_export = await build_statistics(export_points, "export", entry)
             total_count = count_import + count_export
 
             persistent_notification.async_create(

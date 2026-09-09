@@ -356,23 +356,25 @@ class EnergaAPI:
 
         meters_found = []
         for mp in data["response"].get("meterPoints", []):
-            # Original v4.0.9 logic: find matching top-level agreementPoint
+            # 1) PPE code — nested agreementPoints are per-meter and reliable
+            nested_ag = mp.get("agreementPoints") or []
+            ppe = next(
+                (a.get("code") for a in nested_ag if a.get("code")),
+                None,
+            )
+
+            # 2) Match top-level agreementPoint by PPE code (#36: NOT by id)
+            agreement_points = data["response"].get("agreementPoints") or []
             ag = next(
-                (
-                    a
-                    for a in data["response"].get("agreementPoints", [])
-                    if a.get("id") == mp.get("id")
-                ),
+                (a for a in agreement_points if a.get("code") and a.get("code") == ppe),
                 {},
             )
-            if not ag and data["response"].get("agreementPoints"):
-                ag = data["response"]["agreementPoints"][0]
+            # Unambiguous fallback: a single agreement point belongs to this meter
+            if not ag and len(agreement_points) == 1:
+                ag = agreement_points[0]
 
-            # Check nested agreementPoints for PPE if not in top-level
-            nested_ag = mp.get("agreementPoints", [])
-            if nested_ag and nested_ag[0].get("code"):
-                ppe = nested_ag[0].get("code")
-            else:
+            # 3) Resolve PPE from the matched agreement point if still unknown
+            if not ppe:
                 ppe = ag.get("code") or mp.get("ppe") or mp.get("dev") or "Unknown"
 
             serial = mp.get("dev") or mp.get("meterNumber") or "Unknown"
@@ -381,6 +383,14 @@ class EnergaAPI:
             address = ag.get("address")
             if not address and mp.get("name") and mp.get("name") != serial:
                 address = mp.get("name")
+
+            # Custom meter name from portal (#35)
+            portal_name = mp.get("name")
+            meter_name = (
+                portal_name
+                if portal_name and str(portal_name) != str(serial)
+                else None
+            )
 
             # Contract date from top-level agreement (dealer.start)
             c_date = None
@@ -395,6 +405,7 @@ class EnergaAPI:
                 "meter_point_id": mp.get("id"),
                 "ppe": ppe,
                 "meter_serial": serial,
+                "meter_name": meter_name,
                 "tariff": mp.get("tariff"),
                 "address": address,
                 "contract_date": c_date,

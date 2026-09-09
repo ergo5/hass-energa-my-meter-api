@@ -109,9 +109,12 @@ async def async_setup_entry(
         ppe = meter.get("ppe", meter_id)
         has_zones = meter.get("zone_count", 1) > 1
 
+        custom_name = meter.get("meter_name")
+        device_name = f"Energa {custom_name}" if custom_name else f"Energa {serial}"
+
         device_info = DeviceInfo(
             identifiers={(DOMAIN, str(serial))},
-            name=f"Energa {serial}",
+            name=device_name,
             manufacturer="Energa-Operator",
             model=f"PPE: {ppe}",
             configuration_url="https://mojlicznik.energa-operator.pl",
@@ -236,6 +239,7 @@ async def async_setup_entry(
                     name="Panel Energia Strefa 1",
                     device_info=device_info,
                     entry=entry,
+                    serial=serial,
                 )
             )
             sensors.append(
@@ -259,6 +263,7 @@ async def async_setup_entry(
                     name="Panel Energia Strefa 2",
                     device_info=device_info,
                     entry=entry,
+                    serial=serial,
                 )
             )
             sensors.append(
@@ -282,6 +287,7 @@ async def async_setup_entry(
                     name="Panel Energia Zużycie",
                     device_info=device_info,
                     entry=entry,
+                    serial=serial,
                 )
             )
             sensors.append(
@@ -307,6 +313,7 @@ async def async_setup_entry(
                     name="Panel Energia Produkcja Strefa 1",
                     device_info=device_info,
                     entry=entry,
+                    serial=serial,
                 )
             )
             sensors.append(
@@ -328,6 +335,7 @@ async def async_setup_entry(
                     name="Panel Energia Produkcja Strefa 2",
                     device_info=device_info,
                     entry=entry,
+                    serial=serial,
                 )
             )
             sensors.append(
@@ -350,6 +358,7 @@ async def async_setup_entry(
                     name="Panel Energia Produkcja",
                     device_info=device_info,
                     entry=entry,
+                    serial=serial,
                 )
             )
             sensors.append(
@@ -411,6 +420,7 @@ async def async_setup_entry(
         # === INFO SENSORS ===
 
         info_types = [
+            ("meter_name", "Nazwa Licznika", "mdi:tag", None),
             ("address", "Adres", "mdi:map-marker", None),
             ("tariff", "Taryfa", "mdi:cash-multiple", None),
             ("ppe", "PPE", "mdi:identifier", None),
@@ -897,6 +907,7 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
         name: str,
         device_info: DeviceInfo,
         entry: ConfigEntry,
+        serial: str | None = None,
     ) -> None:
         """Initialize statistics sensor."""
         super().__init__(coordinator)
@@ -909,6 +920,19 @@ class EnergaStatisticsSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = name
         self._attr_unique_id = f"energa_{meter_id}_{data_key}_stats"
         self._attr_has_entity_name = True
+
+        # Force entity_id to match statistic_id and cost sensor
+        if serial:
+            suffix_to_name = {
+                "import": "panel_energia_zuzycie",
+                "import_1": "panel_energia_strefa_1",
+                "import_2": "panel_energia_strefa_2",
+                "export": "panel_energia_produkcja",
+                "export_1": "panel_energia_produkcja_strefa_1",
+                "export_2": "panel_energia_produkcja_strefa_2",
+            }
+            energy_slug = suffix_to_name.get(data_key, f"panel_{data_key}")
+            self.entity_id = f"sensor.energa_{serial}_{energy_slug}"
 
         # Sensor class attributes — state_class is required for Energy
         # Dashboard to list this entity in its configuration dropdown.

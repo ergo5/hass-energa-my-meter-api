@@ -1,7 +1,7 @@
 """Shared fixtures for Energa integration tests."""
 
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 # Mock homeassistant modules so we can import integration code
 # without installing the full homeassistant package
@@ -13,6 +13,7 @@ _HA_MODULES = [
     "homeassistant.helpers",
     "homeassistant.helpers.aiohttp_client",
     "homeassistant.helpers.selector",
+    "homeassistant.helpers.device_registry",
     "homeassistant.helpers.entity_registry",
     "homeassistant.helpers.update_coordinator",
     "homeassistant.helpers.entity",
@@ -29,6 +30,7 @@ _HA_MODULES = [
     "homeassistant.util",
     "homeassistant.util.dt",
     "homeassistant.exceptions",
+    "homeassistant.loader",
 ]
 
 for mod_name in _HA_MODULES:
@@ -52,9 +54,22 @@ sensor_mod.SensorDeviceClass = MagicMock()
 sensor_mod.SensorStateClass = MagicMock()
 sensor_mod.SensorEntity = type("SensorEntity", (), {})
 
-# Now safe to import
-from unittest.mock import AsyncMock
+# Provide CoordinatorEntity and DeviceInfo
+sys.modules["homeassistant.helpers.update_coordinator"].CoordinatorEntity = type(
+    "CoordinatorEntity", (), {"__init__": lambda self, coordinator: setattr(self, "coordinator", coordinator)}
+)
+sys.modules["homeassistant.helpers.device_registry"].DeviceInfo = dict
+sys.modules["homeassistant.loader"].async_get_integration = AsyncMock(return_value=MagicMock(version="1.0.0"))
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+dt_mod = sys.modules["homeassistant.util.dt"]
+dt_mod.as_utc = lambda dt: dt.astimezone(ZoneInfo("UTC")) if getattr(dt, "tzinfo", None) else dt.replace(tzinfo=ZoneInfo("UTC"))
+dt_mod.utc_from_timestamp = lambda ts: datetime.fromtimestamp(ts, tz=ZoneInfo("UTC"))
+sys.modules["homeassistant.util"].dt = dt_mod
+
+# Now safe to import
 import aiohttp
 import pytest
 
