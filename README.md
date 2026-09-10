@@ -277,6 +277,25 @@ Use this feature if you have missing data OR if you see incorrect spikes in your
 
 ---
 
+## ⚖️ Which Edition to Choose?
+
+This integration focuses on **HACS Default compliance**, stability, and lightweight operation using only native Home Assistant APIs. If you need advanced prosumer features — virtual energy bank FIFO, dynamic Polish spot prices (PSE RCEm), or auto-generated Lovelace dashboards — check the dedicated prosumer fork by [@lkusinski](https://github.com/lkusinski/hass-energa-my-meter-api-net).
+
+| Feature | 🟢 Standard (`ergo5`) | 🔵 Pro ([`lkusinski`](https://github.com/lkusinski/hass-energa-my-meter-api-net)) |
+| :--- | :---: | :---: |
+| **HACS distribution** | **Official Default** (PR #5727) | Custom Repository |
+| **Architecture** | Native HA Storage API only | Custom SQLite + recorder internals |
+| **Energy Dashboard (A+/A-)** | ✅ | ✅ |
+| **Zone tariffs (G11, G12, G12w)** | ✅ | ✅ |
+| **Cost tracking (PLN)** | ✅ Flat rates | ✅ Full bill simulation |
+| **Virtual battery (FIFO net-metering)** | ❌ | ✅ 12-month kWh bank |
+| **Dynamic spot prices (PSE RCEm)** | ❌ | ✅ Auto-fetched monthly |
+| **Auto-generated Lovelace dashboard** | ❌ | ✅ 1-click |
+
+> 💡 **Summary:** Choose **Standard** for a set-and-forget, officially distributed integration. Choose **Pro** if you are a prosumer needing in-depth settlement simulation, virtual battery tracking, and dynamic pricing.
+
+---
+
 ## 🐛 Troubleshooting
 
 ### Persistent errors in logs?
